@@ -118,6 +118,10 @@ test-integration:  ## Run integration tests with coverage
 test-e2e:  ## Run Playwright E2E tests (builds e2e container)
 	$(DC) --profile test run --rm e2e
 
+.PHONY: test-e2e-local
+test-e2e-local:  ## Run Playwright E2E tests locally on host in headed mode with step delay
+	cd frontend/tests/e2e && npm install && npx playwright install chromium && npx playwright test
+
 .PHONY: test-perf
 test-perf:  ## Run Locust performance tests (customizable: make test-perf users=100 rate=10 time=60s)
 	$(DC) exec backend python -B -m locust \
@@ -175,39 +179,39 @@ rebuild-frontend:  ## Rebuild and restart frontend container (e.g. when package-
 # ──────────────────────────────────────────
 .PHONY: lint
 lint:  ## Run ruff linter on src/ and tests/
-	$(DC) exec backend ruff check src/ tests/
+	cd backend && uv run ruff check src/ tests/
 
 .PHONY: lint-fix
 lint-fix:  ## Run ruff linter with auto-fix
-	$(DC) exec backend ruff check --fix src/ tests/
+	cd backend && uv run ruff check --fix src/ tests/
 
 .PHONY: format
 format:  ## Format code with ruff
-	$(DC) exec backend ruff format src/ tests/ scripts/
+	cd backend && uv run ruff format src/ tests/ scripts/
 
 .PHONY: format-check
 format-check:  ## Check formatting without making changes
-	$(DC) exec backend ruff format --check src/ tests/ scripts/
+	cd backend && uv run ruff format --check src/ tests/ scripts/
 
 .PHONY: typecheck
 typecheck:  ## Run mypy type checker on src/
-	$(DC) exec backend mypy -p src
+	cd backend && uv run mypy -p src
 
 .PHONY: security
 security:  ## Run bandit security scan on src/
-	$(DC) exec backend bandit -c pyproject.toml -r src/
+	cd backend && uv run bandit -c pyproject.toml -r src/
 
 .PHONY: audit
 audit:  ## Scan dependencies for known CVEs
-	$(DC) exec backend pip-audit
+	cd backend && uv run pip-audit
 
 .PHONY: check
-check:
-	$(DC) exec backend ruff check src/ tests/
-	$(DC) exec backend ruff format --check src/ tests/ scripts/
-	$(DC) exec backend mypy -p src
-	$(DC) exec backend bandit -c pyproject.toml -r src/
-	$(DC) exec backend pip-audit
+check:  ## Run all code quality checks (lint, format, typecheck, security, audit)
+	cd backend && uv run ruff check src/ tests/
+	cd backend && uv run ruff format --check src/ tests/ scripts/
+	cd backend && uv run mypy -p src
+	cd backend && uv run bandit -c pyproject.toml -r src/
+	cd backend && uv run pip-audit
 
 # ──────────────────────────────────────────
 # Production

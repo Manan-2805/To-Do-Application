@@ -1,8 +1,8 @@
 import asyncio
 import datetime
 import os
-from typing import Any
 import uuid
+from typing import Any
 
 import jwt
 from pwdlib import PasswordHash
@@ -21,7 +21,9 @@ def get_password_hasher() -> PasswordHash:
     is_perf = os.getenv("PERFORMANCE_TEST") == "true" or os.getenv("TESTING") == "true"
     if is_perf:
         if _test_hasher is None:
-            _test_hasher = PasswordHash([Argon2Hasher(time_cost=1, memory_cost=512, parallelism=2)])
+            _test_hasher = PasswordHash(
+                [Argon2Hasher(time_cost=1, memory_cost=512, parallelism=2)]
+            )
         return _test_hasher
 
     if _hasher is None:
@@ -46,7 +48,9 @@ def verify_password(password: str, hashed_password: str) -> bool:
 
 async def verify_password_async(password: str, hashed_password: str) -> bool:
     """Verify password asynchronously against its Argon2id hash using a worker thread."""
-    return await asyncio.to_thread(get_password_hasher().verify, password, hashed_password)
+    return await asyncio.to_thread(
+        get_password_hasher().verify, password, hashed_password
+    )
 
 
 def create_access_token(

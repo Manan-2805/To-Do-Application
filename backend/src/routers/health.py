@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import settings
 from src.core.logging_conf import correlation_id_ctx
 from src.core.redis_cache import get_redis_client
 from src.dependencies.database import get_db_session

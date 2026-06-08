@@ -15,7 +15,10 @@ export default defineConfig({
     baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:8080",
     actionTimeout: 0,
     trace: "on-first-retry",
-    headless: true,
+    headless: !process.env.CI ? false : (process.env.HEADLESS !== "false"),
+    launchOptions: {
+      slowMo: !process.env.CI ? 1500 : (process.env.SLOWMO ? parseInt(process.env.SLOWMO, 10) : 0),
+    },
     viewport: { width: 1280, height: 720 },
     ignoreHTTPSErrors: true,
     screenshot: "only-on-failure"

@@ -72,4 +72,3 @@ async def invalidate_user_cache(user_id: Any) -> None:
             logger.info(f"Invalidated {len(keys)} cache keys for user {user_id}")
     except Exception as e:
         logger.warning(f"Cache invalidation error for user {user_id}: {e!s}")
-

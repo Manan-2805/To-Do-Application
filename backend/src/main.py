@@ -43,10 +43,12 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
             await scheduler_task
 
         from src.core.redis_cache import redis_client
+
         if redis_client is not None:
             await redis_client.aclose()
 
         from src.database import engine
+
         await engine.dispose()
 
 

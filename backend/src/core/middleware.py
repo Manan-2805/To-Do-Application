@@ -1,6 +1,7 @@
 import logging
 import time
 import uuid
+from typing import Any
 
 from src.core.logging_conf import correlation_id_ctx, user_id_ctx
 
@@ -11,10 +12,10 @@ logger = logging.getLogger("todosphere.middleware")
 class ConsolidatedMiddleware:
     """Consolidated raw ASGI middleware handling Correlation ID, Security Headers, and Request Logging in a single layer."""
 
-    def __init__(self, app) -> None:
+    def __init__(self, app: Any) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send) -> None:
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -32,7 +33,7 @@ class ConsolidatedMiddleware:
 
         status_code = [500]  # default fallback if not intercepted
 
-        async def send_wrapper(message) -> None:
+        async def send_wrapper(message: dict[str, Any]) -> None:
             if message["type"] == "http.response.start":
                 status_code[0] = message.get("status", 200)
                 headers_list = message.setdefault("headers", [])
@@ -43,7 +44,10 @@ class ConsolidatedMiddleware:
                     (b"x-content-type-options", b"nosniff"),
                     (b"x-frame-options", b"DENY"),
                     (b"referrer-policy", b"strict-origin-when-cross-origin"),
-                    (b"content-security-policy", b"default-src 'self'; frame-ancestors 'none'")
+                    (
+                        b"content-security-policy",
+                        b"default-src 'self'; frame-ancestors 'none'",
+                    ),
                 ]
 
                 for name, value in security_headers:

@@ -3,6 +3,7 @@ import hashlib
 import uuid
 
 import jwt
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -60,7 +61,13 @@ class AuthService:
             metadata={"username": username},
         )
 
-        await self.session.commit()
+        try:
+            await self.session.commit()
+        except IntegrityError as e:
+            await self.session.rollback()
+            raise DuplicateEntityException(
+                f"Username '{username}' is already taken."
+            ) from e
         return new_user
 
     async def login_user(

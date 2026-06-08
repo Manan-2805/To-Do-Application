@@ -1,7 +1,7 @@
 import datetime
 import logging
 import random
-import time
+import uuid
 
 from locust import HttpUser, between, task
 
@@ -16,7 +16,7 @@ class TodoSphereLoadTestUser(HttpUser):
 
     def on_start(self) -> None:
         """Onboard user by registering and establishing active cookies session."""
-        self.username = f"locust_{int(time.time())}_{random.randint(1000, 9999)}"
+        self.username = f"locust_{uuid.uuid4().hex}"
         self.password = "Password123!"
         self.task_ids: list[str] = []
         self.authenticated = False
