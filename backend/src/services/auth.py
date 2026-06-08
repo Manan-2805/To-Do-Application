@@ -16,8 +16,8 @@ from src.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
-    hash_password,
-    verify_password,
+    hash_password_async,
+    verify_password_async,
 )
 from src.models.refresh_token import RefreshToken
 from src.models.user import User
@@ -46,7 +46,7 @@ class AuthService:
         if existing:
             raise DuplicateEntityException(f"Username '{username}' is already taken.")
 
-        hashed = hash_password(password)
+        hashed = await hash_password_async(password)
         new_user = User(username=username, hashed_password=hashed)
 
         await self.user_repo.create(new_user)
@@ -68,7 +68,7 @@ class AuthService:
     ) -> tuple[str, str, User]:
         """Authenticate user, create access/refresh JWT tokens, and store session."""
         user = await self.user_repo.get_by_username(username)
-        if not user or not verify_password(password, user.hashed_password):
+        if not user or not await verify_password_async(password, user.hashed_password):
             raise InvalidCredentialsException()
 
         # Generate tokens

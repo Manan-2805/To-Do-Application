@@ -34,3 +34,4 @@ backend/uploads/
 # OS
 .DS_Store
 Thumbs.db
+backend/tests/performance/locust-report.html

@@ -2,12 +2,12 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response
-from redis.asyncio import from_url
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.logging_conf import correlation_id_ctx
+from src.core.redis_cache import get_redis_client
 from src.dependencies.database import get_db_session
 from src.schemas.response import APIResponse, ErrorDetail
 from src.services.storage import get_storage_provider
@@ -46,9 +46,8 @@ async def readiness_check(
 
     # 2. Check Redis Cache
     try:
-        redis_client = from_url(settings.REDIS_URL)
+        redis_client = get_redis_client()
         await redis_client.ping()
-        await redis_client.aclose()
         redis_ok = True
     except Exception as e:
         logger.error(f"Readiness check failed: Redis unreachable: {e!s}")

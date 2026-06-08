@@ -8,16 +8,13 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi.errors import RateLimitExceeded
 
 from src.core.config import settings
 from src.core.exceptions import TodoSphereException
 from src.core.logging_conf import configure_logging, correlation_id_ctx
-from src.core.middleware import (
-    CorrelationIdMiddleware,
-    RequestLoggingMiddleware,
-    SecurityHeadersMiddleware,
-)
+from src.core.middleware import ConsolidatedMiddleware
 from src.core.rate_limit import limiter
 from src.routers.audit import router as audit_router
 from src.routers.auth import router as auth_router
@@ -38,10 +35,19 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         yield
         return
     scheduler_task = asyncio.create_task(run_scheduler(interval_seconds=60))
-    yield
-    scheduler_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await scheduler_task
+    try:
+        yield
+    finally:
+        scheduler_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await scheduler_task
+
+        from src.core.redis_cache import redis_client
+        if redis_client is not None:
+            await redis_client.aclose()
+
+        from src.database import engine
+        await engine.dispose()
 
 
 app = FastAPI(
@@ -52,6 +58,9 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
+
+# Prometheus instrumentation
+Instrumentator().instrument(app).expose(app)
 
 # SlowAPI setup
 app.state.limiter = limiter
@@ -66,9 +75,7 @@ app.add_middleware(
 )
 
 # Custom Middlewares
-app.add_middleware(RequestLoggingMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(ConsolidatedMiddleware)
 
 
 # Exception Handlers

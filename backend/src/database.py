@@ -12,9 +12,10 @@ engine_kwargs: dict[str, Any] = {}
 if os.getenv("TESTING") == "True":
     engine_kwargs["poolclass"] = NullPool
 else:
-    engine_kwargs["pool_size"] = 30
-    engine_kwargs["max_overflow"] = 30
-    engine_kwargs["pool_timeout"] = 30
+    engine_kwargs["pool_size"] = 40
+    engine_kwargs["max_overflow"] = 20
+    engine_kwargs["pool_timeout"] = 25
+    engine_kwargs["pool_recycle"] = 1800
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -36,4 +37,3 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency that provides an active async SQLAlchemy session."""
     async with SessionLocal() as session:
         yield session
-        await session.commit()

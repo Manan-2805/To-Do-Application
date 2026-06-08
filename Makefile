@@ -5,7 +5,12 @@
 # ──────────────────────────────────────────
 APP        := todosphere
 DC         := docker compose
-BACKEND    := todosphere-backend
+BACKEND    := todosphere-dev-backend
+
+# Performance testing defaults
+users      ?= 50
+rate       ?= 10
+time       ?= 60s
 
 .DEFAULT_GOAL := help
 
@@ -114,21 +119,24 @@ test-e2e:  ## Run Playwright E2E tests (builds e2e container)
 	$(DC) --profile test run --rm e2e
 
 .PHONY: test-perf
-test-perf:  ## Run Locust performance tests
+test-perf:  ## Run Locust performance tests (customizable: make test-perf users=100 rate=10 time=60s)
 	$(DC) exec backend python -B -m locust \
 		-f tests/performance/locustfile.py \
-		--headless -u 50 -r 10 --run-time 60s \
+		--headless -u $(users) -r $(rate) --run-time $(time) \
 		--only-summary \
-		--html /tmp/locust-report.html \
+		--html tests/performance/locust-report.html \
 		--host http://localhost:8000
 
 .PHONY: test-stress
-test-stress:  ## Run Locust performance tests
+test-stress: users = 500
+test-stress: rate = 50
+test-stress: time = 5m
+test-stress:  ## Run Locust stress tests (customizable: make test-stress users=1000 rate=100 time=10m)
 	$(DC) exec backend python -B -m locust \
 		-f tests/performance/locustfile.py \
-		--headless -u 500 -r 50 --run-time 5m \
+		--headless -u $(users) -r $(rate) --run-time $(time) \
 		--only-summary \
-		--html /tmp/locust-report.html \
+		--html tests/performance/locust-report.html \
 		--host http://localhost:8000
 
 .PHONY: test-all
@@ -139,9 +147,9 @@ test-all:
 	-$(DC) --profile test run --rm e2e
 	-$(DC) exec backend python -B -m locust \
 		-f tests/performance/locustfile.py \
-		--headless -u 50 -r 10 --run-time 60s \
+		--headless -u $(users) -r $(rate) --run-time $(time) \
 		--only-summary \
-		--html /tmp/locust-report.html \
+		--html tests/performance/locust-report.html \
 		--host http://localhost:8000
 
 

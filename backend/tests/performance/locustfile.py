@@ -163,6 +163,7 @@ class TodoSphereLoadTestUser(HttpUser):
             # Start
             with self.client.put(
                 f"/api/v1/tasks/{active_id}",
+                name="/api/v1/tasks/[id]",
                 data={"status": "In Progress"},
                 catch_response=True,
             ) as response:
@@ -176,6 +177,7 @@ class TodoSphereLoadTestUser(HttpUser):
             # Complete
             with self.client.put(
                 f"/api/v1/tasks/{active_id}",
+                name="/api/v1/tasks/[id]",
                 data={"status": "Done"},
                 catch_response=True,
             ) as response:
