@@ -1,0 +1,126 @@
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: todosphere-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: todosphere
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: todosphere-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: todosphere-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@db:5432/todosphere
+      REDIS_URL: redis://redis:6379/0
+      JWT_ACCESS_SECRET: dev_jwt_access_secret_key_987654321
+      JWT_REFRESH_SECRET: dev_jwt_refresh_secret_key_123456789
+      CORS_ORIGINS: '["http://localhost:8080", "http://127.0.0.1:8080"]'
+      STORAGE_PROVIDER: local
+      UPLOAD_DIR: /app/uploads
+      DISABLE_RATE_LIMIT: "True"
+      PYTHONPATH: /app
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
+      - ./backend/scripts:/app/scripts
+      - ./tests:/app/tests
+      - uploads_data:/app/uploads
+    ports:
+      - "8000:8000"
+    command: sh -c "alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: todosphere-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  e2e:
+    build:
+      context: ./tests
+      dockerfile: Dockerfile.e2e
+    container_name: todosphere-e2e
+    profiles:
+      - test
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    environment:
+      PLAYWRIGHT_BASE_URL: http://frontend:8080
+      CI: "true"
+    volumes:
+      - ./tests/e2e/e2e.spec.ts:/app/e2e.spec.ts
+      - ./tests/e2e/playwright.config.ts:/app/playwright.config.ts
+      - ./tests/test-results-logs:/app/test-results-logs
+
+volumes:
+  postgres_data:
+    name: todosphere_dev_postgres_data
+  redis_data:
+    name: todosphere_dev_redis_data
+  uploads_data:
+    name: todosphere_dev_uploads_data
