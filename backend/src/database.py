@@ -12,8 +12,8 @@ engine_kwargs: dict[str, Any] = {}
 if os.getenv("TESTING") == "True":
     engine_kwargs["poolclass"] = NullPool
 else:
-    engine_kwargs["pool_size"] = 50
-    engine_kwargs["max_overflow"] = 100
+    engine_kwargs["pool_size"] = 30
+    engine_kwargs["max_overflow"] = 30
     engine_kwargs["pool_timeout"] = 30
 
 engine = create_async_engine(
