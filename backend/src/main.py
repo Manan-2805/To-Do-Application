@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import logging
 import os
+from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -31,7 +32,7 @@ logger = logging.getLogger("todosphere.main")
 
 
 @contextlib.asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager starting and stopping background tasks."""
     if os.getenv("TESTING") == "True":
         yield
@@ -73,7 +74,8 @@ app.add_middleware(CorrelationIdMiddleware)
 # Exception Handlers
 @app.exception_handler(TodoSphereException)
 async def todosphere_exception_handler(
-    request: Request, exc: TodoSphereException
+    request: Request,  # noqa: ARG001
+    exc: TodoSphereException,
 ) -> JSONResponse:
     """Handle custom application exceptions and format using API envelope."""
     return JSONResponse(
@@ -89,7 +91,8 @@ async def todosphere_exception_handler(
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
+    request: Request,  # noqa: ARG001
+    exc: RequestValidationError,
 ) -> JSONResponse:
     """Handle Pydantic input validation exceptions and return formatted field error details."""
     errors = []
@@ -116,7 +119,8 @@ async def validation_exception_handler(
 
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_exceeded_handler(
-    request: Request, exc: RateLimitExceeded
+    request: Request,  # noqa: ARG001
+    exc: RateLimitExceeded,  # noqa: ARG001
 ) -> JSONResponse:
     """Handle SlowAPI rate limits and return standardized error response envelope."""
     return JSONResponse(
@@ -134,7 +138,10 @@ async def rate_limit_exceeded_handler(
 
 
 @app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def generic_exception_handler(
+    request: Request,  # noqa: ARG001
+    exc: Exception,
+) -> JSONResponse:
     """Fallback catch-all handler for unhandled exceptions."""
     logger.exception(f"Unhandled server error: {exc!s}")
     return JSONResponse(

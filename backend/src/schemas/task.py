@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.models.task import TaskStatus
 
@@ -38,9 +38,7 @@ class TaskResponse(BaseModel):
     created_at: datetime.datetime
     updated_at: datetime.datetime
 
-    class Config:
-        from_attributes = True
-        json_encoders = {datetime.datetime: lambda dt: dt.isoformat()}  # noqa: RUF012
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PaginatedTasksResponse(BaseModel):

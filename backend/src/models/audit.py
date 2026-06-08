@@ -1,5 +1,6 @@
 import datetime
 import uuid
+from typing import Any
 
 from sqlalchemy import JSON, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -19,7 +20,7 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_id: Mapped[str] = mapped_column(String(100), nullable=True)
-    action_metadata: Mapped[dict] = mapped_column(JSON, nullable=True)
+    action_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     ip_address: Mapped[str] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str] = mapped_column(String(500), nullable=True)

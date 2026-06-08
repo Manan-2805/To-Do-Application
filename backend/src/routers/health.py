@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, Response
 from redis.asyncio import from_url
@@ -16,8 +17,8 @@ logger = logging.getLogger("todosphere.health")
 router = APIRouter(tags=["Health"])
 
 
-@router.get("/health/live", response_model=APIResponse[dict])
-async def liveness_check():
+@router.get("/health/live", response_model=APIResponse[dict[str, Any]])
+async def liveness_check() -> APIResponse[dict[str, Any]]:
     """Liveness check returning instantly to verify the HTTP server is running."""
     return APIResponse(
         success=True,
@@ -30,7 +31,7 @@ async def liveness_check():
 @router.get("/health/ready")
 async def readiness_check(
     response: Response, db: AsyncSession = Depends(get_db_session)
-):
+) -> APIResponse[dict[str, Any]]:
     """Readiness check verifying database connectivity, cache server, and storage permissions."""
     db_ok = False
     redis_ok = False
@@ -47,7 +48,7 @@ async def readiness_check(
     try:
         redis_client = from_url(settings.REDIS_URL)
         await redis_client.ping()
-        await redis_client.close()
+        await redis_client.aclose()
         redis_ok = True
     except Exception as e:
         logger.error(f"Readiness check failed: Redis unreachable: {e!s}")

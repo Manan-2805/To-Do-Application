@@ -23,10 +23,10 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/signup", response_model=APIResponse[UserResponse], status_code=201)
 @limiter.limit("5/minute")
 async def signup(
-    request: Request,
+    request: Request,  # noqa: ARG001
     payload: UserSignUpRequest,
     db: AsyncSession = Depends(get_db_session),
-):
+) -> APIResponse[UserResponse]:
     """Register a new user profile with credentials validation."""
     auth_service = AuthService(db)
     user = await auth_service.register_user(
@@ -51,7 +51,7 @@ async def login(
     response: Response,
     payload: UserLoginRequest,
     db: AsyncSession = Depends(get_db_session),
-):
+) -> APIResponse[UserResponse]:
     """Authenticate credentials and issue session tokens via HttpOnly cookies."""
     auth_service = AuthService(db)
     client_ip = request.client.host if request.client else "unknown"
@@ -97,7 +97,7 @@ async def login(
 @router.post("/refresh", response_model=APIResponse[TokenResponse])
 async def refresh(
     request: Request, response: Response, db: AsyncSession = Depends(get_db_session)
-):
+) -> APIResponse[TokenResponse] | Response:
     """Rotate JWT session tokens using the HttpOnly refresh cookie."""
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -150,7 +150,7 @@ async def refresh(
 @router.post("/logout", response_model=APIResponse[TokenResponse])
 async def logout(
     request: Request, response: Response, db: AsyncSession = Depends(get_db_session)
-):
+) -> APIResponse[TokenResponse]:
     """Revoke the database refresh token and clear user session cookies."""
     refresh_token = request.cookies.get("refresh_token")
     if refresh_token:
@@ -170,7 +170,9 @@ async def logout(
 
 
 @router.get("/me", response_model=APIResponse[UserResponse])
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(
+    current_user: User = Depends(get_current_user),
+) -> APIResponse[UserResponse]:
     """Retrieve profile data for the authenticated user session."""
     user_data = UserResponse.model_validate(current_user)
     return APIResponse(

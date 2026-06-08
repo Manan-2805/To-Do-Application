@@ -1,7 +1,9 @@
 import uuid
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.redis_cache import invalidate_user_cache
 from src.models.audit import AuditLog
 from src.repositories.audit import AuditRepository
 
@@ -9,7 +11,7 @@ from src.repositories.audit import AuditRepository
 class AuditService:
     """Service layer coordinating audit logging and query retrieval."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.repository = AuditRepository(session)
 
@@ -19,11 +21,14 @@ class AuditService:
         action: str,
         entity_type: str,
         entity_id: str | None = None,
-        metadata: dict | None = None,
+        metadata: dict[str, Any] | None = None,
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> AuditLog:
         """Create and write an audit record to DB state (does not commit)."""
+        if user_id:
+            await invalidate_user_cache(user_id)
+
         log_entry = AuditLog(
             user_id=user_id,
             action=action,

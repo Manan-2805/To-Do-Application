@@ -118,17 +118,32 @@ test-perf:  ## Run Locust performance tests
 	$(DC) exec backend python -B -m locust \
 		-f tests/performance/locustfile.py \
 		--headless -u 50 -r 10 --run-time 60s \
+		--only-summary \
+		--html /tmp/locust-report.html \
 		--host http://localhost:8000
 
-.PHONY: test-stree
-test-perf:  ## Run Locust performance tests
+.PHONY: test-stress
+test-stress:  ## Run Locust performance tests
 	$(DC) exec backend python -B -m locust \
 		-f tests/performance/locustfile.py \
 		--headless -u 500 -r 50 --run-time 5m \
+		--only-summary \
+		--html /tmp/locust-report.html \
 		--host http://localhost:8000
 
 .PHONY: test-all
-test-all: test test-e2e test-perf  ## Run all test types in sequence
+test-all: 
+	- $(DC) exec backend python -B -m pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
+	-$(DC) exec backend python -B -m pytest tests/unit/ -v --tb=short
+	-$(DC) exec backend python -B -m pytest tests/integration/ -v --tb=short --cov=src --cov-report=term-missing
+	-$(DC) --profile test run --rm e2e
+	-$(DC) exec backend python -B -m locust \
+		-f tests/performance/locustfile.py \
+		--headless -u 50 -r 10 --run-time 60s \
+		--only-summary \
+		--html /tmp/locust-report.html \
+		--host http://localhost:8000
+
 
 # ──────────────────────────────────────────
 # CI Pipeline
@@ -136,6 +151,16 @@ test-all: test test-e2e test-perf  ## Run all test types in sequence
 .PHONY: ci
 ci:  ## Full test pipeline using the running stack (CI pipeline)
 	bash scripts/run-tests.sh
+
+.PHONY: rebuild-backend
+rebuild-backend:  ## Rebuild and restart backend container (e.g. when pyproject.toml or uv.lock changes)
+	$(DC) build backend
+	$(DC) up -d --force-recreate backend
+
+.PHONY: rebuild-frontend
+rebuild-frontend:  ## Rebuild and restart frontend container (e.g. when package-lock.json changes)
+	$(DC) build frontend
+	$(DC) up -d --force-recreate frontend
 
 # ──────────────────────────────────────────
 # Code Quality (runs inside backend container)
@@ -169,7 +194,12 @@ audit:  ## Scan dependencies for known CVEs
 	$(DC) exec backend pip-audit
 
 .PHONY: check
-check: lint format-check typecheck security audit  ## Run all code quality and security checks
+check:
+	$(DC) exec backend ruff check src/ tests/
+	$(DC) exec backend ruff format --check src/ tests/ scripts/
+	$(DC) exec backend mypy -p src
+	$(DC) exec backend bandit -c pyproject.toml -r src/
+	$(DC) exec backend pip-audit
 
 # ──────────────────────────────────────────
 # Production

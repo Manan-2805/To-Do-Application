@@ -24,7 +24,7 @@ async def test_scheduler_run_success():
 
     sleep_count = 0
 
-    async def mock_sleep(seconds):
+    async def mock_sleep(_seconds: float) -> None:
         nonlocal sleep_count
         sleep_count += 1
         if sleep_count > 1:
@@ -58,7 +58,7 @@ async def test_scheduler_run_exception():
 
     sleep_count = 0
 
-    async def mock_sleep(seconds):
+    async def mock_sleep(_seconds: float) -> None:
         nonlocal sleep_count
         sleep_count += 1
         if sleep_count > 1:

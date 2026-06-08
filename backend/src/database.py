@@ -1,5 +1,6 @@
 import os
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -7,13 +8,19 @@ from sqlalchemy.pool import NullPool
 from src.core.config import settings
 
 
-poolclass = NullPool if os.getenv("TESTING") == "True" else None
+engine_kwargs: dict[str, Any] = {}
+if os.getenv("TESTING") == "True":
+    engine_kwargs["poolclass"] = NullPool
+else:
+    engine_kwargs["pool_size"] = 50
+    engine_kwargs["max_overflow"] = 100
+    engine_kwargs["pool_timeout"] = 30
 
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
-    poolclass=poolclass,
+    **engine_kwargs,
 )
 
 SessionLocal = async_sessionmaker(

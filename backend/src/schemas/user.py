@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class UserBase(BaseModel):
@@ -14,7 +14,7 @@ class UserSignUpRequest(UserBase):
 
     @field_validator("confirm_password")
     @classmethod
-    def passwords_match(cls, confirm_pwd: str, info) -> str:
+    def passwords_match(cls, confirm_pwd: str, info: ValidationInfo) -> str:
         """Validate that password and confirm_password are identical."""
         if "password" in info.data and confirm_pwd != info.data["password"]:
             raise ValueError("Passwords do not match.")
@@ -30,9 +30,7 @@ class UserResponse(UserBase):
     created_at: datetime.datetime
     updated_at: datetime.datetime
 
-    class Config:
-        from_attributes = True
-        json_encoders = {datetime.datetime: lambda dt: dt.isoformat()}  # noqa: RUF012
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TokenResponse(BaseModel):

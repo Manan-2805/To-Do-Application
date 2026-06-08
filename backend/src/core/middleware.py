@@ -3,7 +3,7 @@ import time
 import uuid
 
 from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from src.core.logging_conf import correlation_id_ctx, user_id_ctx
 
@@ -14,7 +14,9 @@ logger = logging.getLogger("todosphere.middleware")
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     """Middleware to inject correlation IDs into the request and contextvars."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         corr_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
 
         # Set context variable for logs
@@ -31,7 +33,9 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Middleware to inject standard security hardening headers."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -45,7 +49,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware to log details about every HTTP request with duration."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         start_time = time.perf_counter()
 
         # Reset user ID context var for the new request thread

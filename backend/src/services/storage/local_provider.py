@@ -61,7 +61,7 @@ class LocalStorageProvider(StorageProvider):
         try:
             test_file = os.path.join(self.base_dir, f".health_{uuid.uuid4()}")
 
-            def test_write_and_delete():
+            def test_write_and_delete() -> None:
                 with open(test_file, "w") as f:
                     f.write("health_check")
                 os.remove(test_file)

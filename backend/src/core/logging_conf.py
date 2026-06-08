@@ -31,7 +31,7 @@ class StructuredJSONFormatter(logging.Formatter):
         return json.dumps(log_record)
 
 
-def configure_logging():
+def configure_logging() -> None:
     """Configure structured logging for the application."""
     root_logger = logging.getLogger()
 

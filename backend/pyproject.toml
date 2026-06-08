@@ -81,6 +81,30 @@ plugins = ["pydantic.mypy"]
 explicit_package_bases = true
 mypy_path = "."
 
+[[tool.mypy.overrides]]
+module = "openpyxl"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "openpyxl.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "reportlab"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "reportlab.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "locust"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "locust.*"
+ignore_missing_imports = true
+
 [tool.bandit]
 skips = ["B104"]
 

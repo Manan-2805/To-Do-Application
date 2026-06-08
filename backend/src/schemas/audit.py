@@ -2,7 +2,7 @@ import datetime
 import uuid
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class AuditResponse(BaseModel):
@@ -17,9 +17,7 @@ class AuditResponse(BaseModel):
     user_agent: str | None = None
     created_at: datetime.datetime
 
-    class Config:
-        from_attributes = True
-        json_encoders = {datetime.datetime: lambda dt: dt.isoformat()}  # noqa: RUF012
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PaginatedAuditResponse(BaseModel):

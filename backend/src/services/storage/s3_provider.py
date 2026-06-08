@@ -10,12 +10,12 @@ logger = logging.getLogger("todosphere.storage.s3")
 class S3StorageProvider(StorageProvider):
     """Stub implementation for S3 storage provider. Prepared for future cloud migrations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         logger.warning(
             "S3StorageProvider is initialized as a STUB. AWS uploads are not active."
         )
 
-    async def save_file(self, file_name: str, contents: bytes) -> str:
+    async def save_file(self, file_name: str, _contents: bytes) -> str:
         """Stub save_file."""
         logger.warning(
             f"S3StorageProvider.save_file called for {file_name} (STUB). File not persisted to cloud."

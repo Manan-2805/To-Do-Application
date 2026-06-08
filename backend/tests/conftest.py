@@ -93,7 +93,7 @@ def override_db_dependency(db_session: AsyncSession):
 
 
 @pytest_asyncio.fixture
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:  # noqa: ARG001
     """Supply async HTTPX client for testing FastAPI routers."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
