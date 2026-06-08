@@ -6,13 +6,25 @@ test.describe("TodoSphere End-to-End Flow", () => {
   const taskName = `E2E Playwright Task_${Date.now()}`;
 
   test("User lifecycle: signup, login, task management, dashboard and audit check", async ({ page }) => {
-    page.on("console", msg => console.log("BROWSER CONSOLE:", msg.text()));
+    page.on("console", msg => {
+      const text = msg.text();
+      if (text.includes("Failed to load resource") && text.includes("401")) {
+        return;
+      }
+      console.log("BROWSER CONSOLE:", text);
+    });
     page.on("response", async response => {
-      if (response.status() >= 400) {
+      const url = response.url();
+      const status = response.status();
+      if (status >= 400) {
+        if (status === 401 && (url.includes("/api/v1/auth/me") || url.includes("/api/v1/auth/refresh"))) {
+          // Suppressed expected unauthenticated session check logs
+          return;
+        }
         try {
-          console.log("HTTP ERROR:", response.url(), response.status(), await response.text());
+          console.log("HTTP ERROR:", url, status, await response.text());
         } catch {
-          console.log("HTTP ERROR (could not read body):", response.url(), response.status());
+          console.log("HTTP ERROR (could not read body):", url, status);
         }
       }
     });

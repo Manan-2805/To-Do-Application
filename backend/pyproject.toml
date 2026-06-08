@@ -45,7 +45,22 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+select =  [
+    "E",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "C4",
+    "SIM",
+    "RUF",
+    "T20",   # print()
+    "ARG",   # unused arguments
+    "RET",   # return patterns
+    "PIE",   # misc bug patterns
+    "PT",    # pytest rules
+]
 ignore = ["B008", "E501", "N818", "B904", "UP042", "UP046"]
 
 [tool.ruff.lint.isort]
@@ -60,8 +75,8 @@ known-first-party = ["src"]
 
 [tool.mypy]
 python_version = "3.12"
-strict = false
-ignore_missing_imports = true
+strict = true
+ignore_missing_imports = false
 plugins = ["pydantic.mypy"]
 explicit_package_bases = true
 mypy_path = "."
@@ -78,8 +93,15 @@ pythonpath = ["."]
 addopts = ["--strict-markers", "-ra"]
 
 [tool.coverage.run]
+fail_under = 90
 source = ["src"]
-omit = ["tests/*", "alembic/*", "scripts/*"]
+omit = [
+    "tests/*",
+    "alembic/*",
+    "scripts/*",
+    "src/core/tracing.py",
+    "src/services/storage/s3_provider.py",
+]
 
 [tool.coverage.report]
 exclude_lines = [

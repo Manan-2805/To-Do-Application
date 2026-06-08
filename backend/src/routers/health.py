@@ -73,13 +73,12 @@ async def readiness_check(
         return APIResponse(
             success=True, data=data, error=None, correlation_id=correlation_id_ctx.get()
         )
-    else:
-        return APIResponse(
-            success=False,
-            data=data,
-            error=ErrorDetail(
-                code="SERVICE_UNAVAILABLE",
-                message="One or more background services are unreachable or unhealthy.",
-            ),
-            correlation_id=correlation_id_ctx.get(),
-        )
+    return APIResponse(
+        success=False,
+        data=data,
+        error=ErrorDetail(
+            code="SERVICE_UNAVAILABLE",
+            message="One or more background services are unreachable or unhealthy.",
+        ),
+        correlation_id=correlation_id_ctx.get(),
+    )

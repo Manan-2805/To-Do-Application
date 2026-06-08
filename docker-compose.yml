@@ -60,7 +60,7 @@ services:
       - ./backend/alembic:/app/alembic
       - ./backend/alembic.ini:/app/alembic.ini
       - ./backend/scripts:/app/scripts
-      - ./tests:/app/tests
+      - ./backend/tests:/app/tests
       - uploads_data:/app/uploads
     ports:
       - "8000:8000"
@@ -99,8 +99,8 @@ services:
 
   e2e:
     build:
-      context: ./tests
-      dockerfile: Dockerfile.e2e
+      context: ./frontend
+      dockerfile: tests/Dockerfile.e2e
     container_name: todosphere-e2e
     profiles:
       - test
@@ -113,9 +113,9 @@ services:
       PLAYWRIGHT_BASE_URL: http://frontend:8080
       CI: "true"
     volumes:
-      - ./tests/e2e/e2e.spec.ts:/app/e2e.spec.ts
-      - ./tests/e2e/playwright.config.ts:/app/playwright.config.ts
-      - ./tests/test-results-logs:/app/test-results-logs
+      - ./frontend/tests/e2e/e2e.spec.ts:/app/e2e.spec.ts
+      - ./frontend/tests/e2e/playwright.config.ts:/app/playwright.config.ts
+      - ./frontend/tests/test-results-logs:/app/test-results-logs
 
 volumes:
   postgres_data:

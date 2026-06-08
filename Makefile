@@ -114,10 +114,17 @@ test-e2e:  ## Run Playwright E2E tests (builds e2e container)
 	$(DC) --profile test run --rm e2e
 
 .PHONY: test-perf
-test-perf:  ## Run Locust performance tests (30s, 10 users)
+test-perf:  ## Run Locust performance tests
 	$(DC) exec backend python -B -m locust \
 		-f tests/performance/locustfile.py \
-		--headless -u 10 -r 2 --run-time 30s \
+		--headless -u 50 -r 10 --run-time 60s \
+		--host http://localhost:8000
+
+.PHONY: test-stree
+test-perf:  ## Run Locust performance tests
+	$(DC) exec backend python -B -m locust \
+		-f tests/performance/locustfile.py \
+		--headless -u 500 -r 50 --run-time 5m \
 		--host http://localhost:8000
 
 .PHONY: test-all
@@ -127,8 +134,8 @@ test-all: test test-e2e test-perf  ## Run all test types in sequence
 # CI Pipeline
 # ──────────────────────────────────────────
 .PHONY: ci
-ci:  ## Full clean rebuild + all tests (CI pipeline)
-	bash tests/run-tests.sh
+ci:  ## Full test pipeline using the running stack (CI pipeline)
+	bash scripts/run-tests.sh
 
 # ──────────────────────────────────────────
 # Code Quality (runs inside backend container)
@@ -186,7 +193,7 @@ prod-down:  ## Stop the production stack
 clean:  ## Remove upload files and stop containers (keep images)
 	$(DC) down --remove-orphans
 	rm -rf backend/uploads/* 2>/dev/null || true
-	rm -rf tests/test-results-logs/* 2>/dev/null || true
+	rm -rf frontend/tests/test-results-logs/* 2>/dev/null || true
 
 .PHONY: clean-all
 clean-all:  ## Remove containers, volumes, images and build cache
@@ -194,4 +201,4 @@ clean-all:  ## Remove containers, volumes, images and build cache
 	docker image rm $(APP)-backend $(APP)-frontend $(APP)-e2e 2>/dev/null || true
 	docker builder prune -f
 	rm -rf backend/uploads/* 2>/dev/null || true
-	rm -rf tests/test-results-logs/* 2>/dev/null || true
+	rm -rf frontend/tests/test-results-logs/* 2>/dev/null || true

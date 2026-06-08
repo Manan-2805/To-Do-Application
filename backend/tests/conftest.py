@@ -50,11 +50,16 @@ def event_loop():
 async def prepare_database():
     """Build test tables and clean up on test completion."""
     # Ensure test database exists
-    postgres_url = settings.DATABASE_URL.replace("/todosphere", "/postgres")
+    base_db_url, _ = settings.DATABASE_URL.rsplit("/", 1)
+    postgres_url = f"{base_db_url}/postgres"
+
+    parsed_test_url = urllib.parse.urlparse(TEST_DATABASE_URL)
+    test_db_name = parsed_test_url.path.lstrip("/")
+
     temp_engine = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT")
     async with temp_engine.connect() as conn:
         with contextlib.suppress(Exception):
-            await conn.execute(text("CREATE DATABASE todosphere_test"))
+            await conn.execute(text(f'CREATE DATABASE "{test_db_name}"'))
     await temp_engine.dispose()
 
     async with test_engine.begin() as conn:
