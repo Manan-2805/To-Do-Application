@@ -1,0 +1,21 @@
+# Trivy vulnerability ignore list
+#
+# These CVEs affect essential Debian system packages (perl-base, ncurses-base,
+# ncurses-bin, libncursesw6) that CANNOT be removed from python:3.12-slim
+# without breaking the base OS (apt marks them as essential).
+#
+# All entries below have status "fix_deferred" or "affected" in the Debian
+# security tracker, meaning NO FIXED VERSION exists in the upstream Debian
+# repository at time of writing. They cannot be resolved by apt-get upgrade.
+#
+# Re-evaluate when Debian releases patches for these CVEs.
+
+# perl-base — essential Debian package (required by dpkg)
+CVE-2026-42496
+CVE-2026-8376
+CVE-2026-42497
+CVE-2026-48962
+CVE-2026-9538
+
+# ncurses — essential Debian package (required by many system utilities)
+CVE-2025-69720

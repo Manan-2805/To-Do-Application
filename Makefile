@@ -100,7 +100,7 @@ seed:  ## Seed the dev database with demo data
 	$(DC) exec backend python -B scripts/seed.py
 
 # ──────────────────────────────────────────
-# Testing & Code Quality
+# Testing, Code Quality & Security Scanning
 # ──────────────────────────────────────────
 .PHONY: check
 check:  ## Run all code quality checks (lint, format, typecheck, security) for backend and frontend
@@ -178,6 +178,18 @@ test-stress:  ## Run Locust stress tests (customizable: make test-stress users=1
 		--only-summary \
 		--html tests/performance/locust-report.html \
 		--host http://localhost:8000
+
+.PHONY: trivy-scan
+trivy-scan:  ## Scan built Docker images for OS and package vulnerabilities using Trivy (ignores unfixable CVEs)
+	@powershell -Command "$$failed = $$false; \
+	$$ignoreFile = (Resolve-Path '.trivyignore').Path; \
+	Write-Host '=== Running Trivy Security Scan (Backend Image) ===' -ForegroundColor Cyan; \
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v todosphere-trivy-cache:/root/.cache -v \"$${ignoreFile}:/root/.trivyignore:ro\" aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --ignorefile /root/.trivyignore to-do-application-backend:latest; \
+	if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Backend Trivy scan found fixable HIGH/CRITICAL vulnerabilities!' -ForegroundColor Red } else { Write-Host 'Backend Trivy scan passed.' -ForegroundColor Green }; \
+	Write-Host '=== Running Trivy Security Scan (Frontend Image) ===' -ForegroundColor Cyan; \
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v todosphere-trivy-cache:/root/.cache -v \"$${ignoreFile}:/root/.trivyignore:ro\" aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --ignorefile /root/.trivyignore to-do-application-frontend:latest; \
+	if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Frontend Trivy scan found fixable HIGH/CRITICAL vulnerabilities!' -ForegroundColor Red } else { Write-Host 'Frontend Trivy scan passed.' -ForegroundColor Green }; \
+	if ($$failed) { Write-Host '=== Trivy Scan FAILED ===' -ForegroundColor Red; exit 1 } else { Write-Host '=== Trivy Scan PASSED ===' -ForegroundColor Green }"
 
 .PHONY: rebuild-backend
 rebuild-backend:  ## Rebuild and restart backend container

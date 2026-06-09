@@ -2,6 +2,8 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 COPY pyproject.toml uv.lock ./
@@ -11,6 +13,8 @@ RUN uv sync --frozen --no-dev --no-install-project
 FROM python:3.12-slim AS runtime
 
 WORKDIR /app
+
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g 10001 appgroup && \
     useradd -u 10001 -g appgroup -M -s /sbin/nologin appuser
