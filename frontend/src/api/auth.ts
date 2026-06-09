@@ -7,8 +7,16 @@ export interface User {
   updated_at: string;
 }
 
-export const signUp = (username: string, password: string, confirmPassword: string): Promise<User> => {
-  return client.post<User>("/auth/signup", { username, password, confirm_password: confirmPassword });
+export const signUp = (
+  username: string,
+  password: string,
+  confirmPassword: string
+): Promise<User> => {
+  return client.post<User>("/auth/signup", {
+    username,
+    password,
+    confirm_password: confirmPassword,
+  });
 };
 
 export const login = (username: string, password: string): Promise<User> => {

@@ -56,23 +56,24 @@ async def test_redis_cache_set_exception() -> None:
 async def test_redis_cache_invalidate() -> None:
     """Verify that cache invalidation deletes keys matching user prefix."""
     mock_client = AsyncMock()
-    mock_client.keys.return_value = ["user:1:key1", "user:1:key2"]
+    mock_client.smembers.return_value = ["user:1:key1", "user:1:key2"]
 
     with patch("src.core.redis_cache.get_redis_client", return_value=mock_client):
         await invalidate_user_cache(1)
-        mock_client.keys.assert_called_once_with("user:1:*")
-        mock_client.delete.assert_called_once_with("user:1:key1", "user:1:key2")
+        mock_client.smembers.assert_called_once_with("user:1:keys")
+        mock_client.delete.assert_any_call("user:1:key1", "user:1:key2")
+        mock_client.delete.assert_any_call("user:1:keys")
 
 
 @pytest.mark.asyncio
 async def test_redis_cache_invalidate_no_keys() -> None:
     """Verify cache invalidation proceeds correctly if no matching keys are found."""
     mock_client = AsyncMock()
-    mock_client.keys.return_value = []
+    mock_client.smembers.return_value = []
 
     with patch("src.core.redis_cache.get_redis_client", return_value=mock_client):
         await invalidate_user_cache(1)
-        mock_client.keys.assert_called_once_with("user:1:*")
+        mock_client.smembers.assert_called_once_with("user:1:keys")
         mock_client.delete.assert_not_called()
 
 
@@ -80,7 +81,7 @@ async def test_redis_cache_invalidate_no_keys() -> None:
 async def test_redis_cache_invalidate_exception() -> None:
     """Verify that invalidation exception is caught and handled."""
     mock_client = AsyncMock()
-    mock_client.keys.side_effect = Exception("Redis query error")
+    mock_client.smembers.side_effect = Exception("Redis query error")
 
     with patch("src.core.redis_cache.get_redis_client", return_value=mock_client):
         # Should catch exception and not crash

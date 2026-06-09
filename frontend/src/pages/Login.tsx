@@ -10,10 +10,10 @@ interface LoginProps {
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
-  
+
   const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -54,17 +54,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         </div>
 
         {error && (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.75rem 1rem",
-            backgroundColor: "rgba(239, 68, 68, 0.1)",
-            color: "var(--danger-color)",
-            borderRadius: "8px",
-            fontSize: "0.875rem",
-            marginBottom: "1rem"
-          }}>
+          <div className="form-error-alert">
             <AlertCircle size={16} />
             <span>{error}</span>
           </div>
@@ -72,7 +62,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label" htmlFor="username">Username</label>
+            <label className="form-label" htmlFor="username">
+              Username
+            </label>
             <input
               id="username"
               type="text"
@@ -86,7 +78,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="password">Password</label>
+            <label className="form-label" htmlFor="password">
+              Password
+            </label>
             <input
               id="password"
               type="password"
@@ -110,8 +104,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         </form>
 
         <div style={{ textAlign: "center", marginTop: "1.5rem", fontSize: "0.875rem" }}>
-          <span style={{ color: "var(--text-secondary)" }}>Don't have an account? </span>
-          <Link to="/signup" style={{ fontWeight: 600 }}>Sign Up</Link>
+          <span style={{ color: "var(--text-secondary)" }}>Don&apos;t have an account? </span>
+          <Link to="/signup" style={{ fontWeight: 600 }}>
+            Sign Up
+          </Link>
         </div>
       </div>
     </div>

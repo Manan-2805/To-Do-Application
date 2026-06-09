@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Sun, Moon } from "lucide-react";
+
+import { Moon, Sun } from "lucide-react";
 
 export const ThemeToggle: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(() => {
-    return localStorage.getItem("theme") === "dark" || 
-      (!localStorage.getItem("theme") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const savedTheme = localStorage.getItem("theme");
+    return (
+      savedTheme === "dark" ||
+      (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)
+    );
   });
 
   useEffect(() => {
@@ -19,6 +23,7 @@ export const ThemeToggle: React.FC = () => {
 
   return (
     <button
+      type="button"
       onClick={() => setIsDark(!isDark)}
       className="btn btn-secondary"
       style={{ padding: "0.5rem", borderRadius: "50%", width: "40px", height: "40px" }}

@@ -10,7 +10,6 @@ import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Tasks from "./pages/Tasks";
 
-
 export const App: React.FC = () => {
   const [username, setUsername] = useState<string>("");
   const [authenticated, setAuthenticated] = useState<boolean>(false);
@@ -28,7 +27,8 @@ export const App: React.FC = () => {
         setCheckingSession(false);
       }
     };
-    
+
+    // react-doctor-disable-next-line react-doctor/no-initialize-state
     checkSession();
   }, []);
 
@@ -44,8 +44,19 @@ export const App: React.FC = () => {
 
   if (checkingSession) {
     return (
-      <div style={{ display: "flex", width: "100vw", height: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-primary)" }}>
-        <p style={{ color: "var(--text-secondary)", fontWeight: 500 }}>Initializing TodoSphere Session...</p>
+      <div
+        style={{
+          display: "flex",
+          width: "100vw",
+          height: "100vh",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "var(--bg-primary)",
+        }}
+      >
+        <p style={{ color: "var(--text-secondary)", fontWeight: 500 }}>
+          Initializing TodoSphere Session...
+        </p>
       </div>
     );
   }
@@ -54,13 +65,19 @@ export const App: React.FC = () => {
     <BrowserRouter>
       <Routes>
         {/* Public Auth Routes */}
-        <Route 
-          path="/login" 
-          element={!authenticated ? <Login onLoginSuccess={handleLoginSuccess} /> : <Navigate to="/dashboard" />} 
+        <Route
+          path="/login"
+          element={
+            !authenticated ? (
+              <Login onLoginSuccess={handleLoginSuccess} />
+            ) : (
+              <Navigate to="/dashboard" />
+            )
+          }
         />
-        <Route 
-          path="/signup" 
-          element={!authenticated ? <SignUp /> : <Navigate to="/dashboard" />} 
+        <Route
+          path="/signup"
+          element={!authenticated ? <SignUp /> : <Navigate to="/dashboard" />}
         />
 
         {/* Protected Dashboard Routes */}
@@ -107,10 +124,7 @@ export const App: React.FC = () => {
         />
 
         {/* Fallback routing */}
-        <Route 
-          path="*" 
-          element={<Navigate to={authenticated ? "/dashboard" : "/login"} />} 
-        />
+        <Route path="*" element={<Navigate to={authenticated ? "/dashboard" : "/login"} />} />
       </Routes>
     </BrowserRouter>
   );

@@ -47,10 +47,6 @@ export const getTasks = (
   return client.get<PaginatedTasks>(`/tasks/?${params.toString()}`);
 };
 
-export const getTask = (taskId: string): Promise<Task> => {
-  return client.get<Task>(`/tasks/${taskId}`);
-};
-
 export const createTask = (formData: FormData): Promise<Task> => {
   return client.post<Task>("/tasks/", formData);
 };
@@ -72,11 +68,11 @@ export const downloadExport = async (type: "pdf" | "excel"): Promise<void> => {
   const response = await fetch(`${baseUrl}/tasks/export/${type}`, {
     credentials: "include",
   });
-  
+
   if (!response.ok) {
     throw new Error(`Export failed: ${response.statusText}`);
   }
-  
+
   const blob = await response.blob();
   const downloadUrl = window.URL.createObjectURL(blob);
   const a = document.createElement("a");

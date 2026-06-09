@@ -1,211 +1,116 @@
 # TodoSphere (DevOps Minimal Edition)
 
-TodoSphere is a secure, responsive, enterprise-grade full-stack TODO application built using modern DevOps principles. It features a robust Python/FastAPI backend, a React/TypeScript/Vite frontend, and integrates database, caching, security middleware, and extensive automated testing suites.
+An enterprise-grade, secure, and production-optimized full-stack task management application. Built using FastAPI, React 19, TypeScript, PostgreSQL, and Redis, orchestrated entirely with Docker Compose, and validated with strict static analysis and automated test suites.
 
 ---
 
-## Technical Stack
+## 📂 Sub-Project Portals
 
-- **Frontend**: React (v19) + TypeScript + Vite (v8) + Vanilla CSS Variables (Light/Dark theme support)
+For detailed documentation, development setup, and API details on each specific layer:
+
+- 💻 **[React Frontend Portal](frontend/README.md)**: React 19, Vite, TypeScript, Vanilla CSS, React Doctor (96/100), and Lighthouse audits.
+- ⚙️ **[FastAPI Backend Service](backend/README.md)**: FastAPI, Pydantic, SQLAlchemy, Alembic, uv, and security middleware.
+
+---
+
+## 🛠️ Technical Stack
+
+- **Frontend**: React (v19) + TypeScript + Vite (v8) + Vanilla CSS Variables (Light/Dark mode transitions)
 - **Backend**: FastAPI (Python 3.12)
 - **Database**: PostgreSQL (SQLAlchemy 2.x, Alembic Migrations)
-- **Rate Limiting / Cache**: Redis + SlowAPI
-- **Validation**: Pydantic v2
-- **Python Package Manager & Runner**: `uv`
-- **Security / Session**: HttpOnly Cookies + JWT (Access & Refresh tokens) + Argon2id Password Hashing
-- **DevOps**: Docker Compose, Multi-stage builds, named volumes, health checks, and non-root execution contexts
-- **Testing**: Pytest (unit & integration), Playwright (E2E browser testing), Locust (headless performance/load testing)
-- **Static Analysis & Security**: Ruff (linter & formatter), Mypy (type checker), Bandit (security scan), Pip-audit (vulnerability auditing)
+- **Caching & Rate Limiting**: Redis + SlowAPI
+- **Package Managers**: `uv` (Python), `npm` (Node)
+- **Security Protocols**: HttpOnly Cookies + JWT Rotation + Argon2id Hashing + Security Headers Middleware
+- **Quality Verification**: Ruff, Prettier, ESLint, MyPy, Bandit, Pip-Audit, NPM Audit, React Doctor (Score 96), and Lighthouse
+- **Orchestration**: Docker Compose with named volumes, multi-stage caching, and non-root execution contexts
+- **Testing Suite**: Pytest (unit/integration), Vitest (component), Playwright (E2E browser), and Locust (load/stress testing)
 
 ---
 
-## Architectural & DevOps Highlights
+## 🌟 Architectural & DevOps Highlights
 
 1. **Optimized Docker Image Strategy**:
    - Separate development (`Dockerfile.dev`) and production (`Dockerfile`) configurations for both backend and frontend.
-   - Development dependencies and package directories (`.venv` for Python, `node_modules` for Node) are baked directly into docker layers and cached. They are **not** mounted from the host machine, keeping environments completely isolated, clean, and high-performing.
-2. **API-Service-Repository Layers**: Complete separation of concerns. Routers parse inputs, Services manage business rules and transaction boundaries, and Repositories run database operations.
-3. **Refresh Token Rotation**: Secures authentication sessions using HttpOnly cookies with token rotation. If an invalid or reused refresh token is detected, all active sessions for that user are revoked.
-4. **Database Constraints**: Enforces check constraints (`expected_end_time >= start_time`, `actual_end_time >= start_time`) directly at the database layer.
-5. **State Machine**: Restricts task status progression (e.g. `Done` is a terminal state). Auto-calculates task durations upon completion.
-6. **Background Scheduler**: Asynchronously transitions tasks that pass their deadline to a `Missed` status.
-7. **Uploads Abstraction & Validation**: Abstract `StorageProvider` supports local and S3 storage stubs. Restricts files to 5 MB and formats `.jpg`, `.jpeg`, `.png`, and `.webp`.
-8. **JSON Log Correlation**: Request-scoped middleware generates unique `X-Correlation-ID` values, injected into context variables and written inside structured JSON application logs.
-9. **Security Headers Middleware**: Injects `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy` security headers on all responses.
-10. **Ephemeral CI DB & Pipeline**: The CI test pipeline (`run-tests.sh`) creates an isolated, timestamped temp database, executes migrations, seeds rich fake data using a custom `ci_seed.py` generator, runs all test suites, and cleans up all temporary resources upon exit.
+   - Development dependencies are baked directly into docker layers and cached. They are **not** mounted from the host machine, keeping environments isolated, clean, and high-performing.
+2. **Refresh Token Rotation**: Secures authentication sessions using HttpOnly cookies with token rotation. If an invalid or reused refresh token is detected, all active sessions for that user are revoked.
+3. **Database Constraints & Validation**: Enforces check constraints (`expected_end_time >= start_time`, `actual_end_time >= start_time`) directly at the database layer.
+4. **State Machine**: Restricts task status progression (e.g. `Done` is a terminal state). Auto-calculates task durations upon completion.
+5. **Background Scheduler**: Asynchronously transitions tasks that pass their deadline to a `Missed` status.
+6. **Uploads Abstraction & Validation**: Abstract `StorageProvider` supports local and S3 storage stubs. Restricts files to 5 MB and formats `.jpg`, `.jpeg`, `.png`, and `.webp`.
+7. **JSON Log Correlation**: Request-scoped middleware generates unique `X-Correlation-ID` values, injected into context variables and written inside structured JSON application logs.
+8. **Security Headers Middleware**: Injects `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy` security headers on all responses.
 
 ---
 
-## File Structure
-
-```
-To-Do-Application/
-├── Makefile                          # Task automation command shortcuts
-├── docker-compose.yml                # Main Docker development configuration
-├── docker-compose.prod.yml           # Production Docker Compose configuration
-├── .env.example                      # Configuration template
-├── backend/                          # FastAPI Backend codebase
-│   ├── Dockerfile                    # Multi-stage production Python runner
-│   ├── Dockerfile.dev                # Development Python runner (cached .venv)
-│   ├── .dockerignore                 # Excludes caches, venv, and logs
-│   ├── pyproject.toml                # uv, Ruff, Mypy, Bandit, and Pytest configuration
-│   ├── uv.lock                       # uv lockfile
-│   ├── alembic.ini                   # Alembic database migrations config
-│   ├── alembic/                      # Migrations environment and scripts
-│   └── src/
-│       ├── main.py                   # App entrypoint
-│       ├── core/                     # Cross-cutting concerns (logging, config, middleware)
-│       ├── dependencies/             # FastAPI dependencies (auth, db, pagination)
-│       ├── models/                   # SQLAlchemy models
-│       ├── repositories/             # Repository layer classes
-│       ├── services/                 # Services layer classes (auth, task, storage)
-│       └── utils/                    # Export helper utilities (Excel, PDF)
-├── frontend/                         # React Frontend codebase
-│   ├── Dockerfile                    # Multi-stage production Nginx server
-│   ├── Dockerfile.dev                # Development Node runner (cached node_modules)
-│   ├── .dockerignore                 # Excludes node_modules, builds, and logs
-│   ├── nginx.conf                    # Nginx reverse-proxy router
-│   ├── index.html                    # Root HTML file
-│   ├── package.json                  # Frontend dependencies
-│   └── src/
-│       ├── main.tsx                  # React mounter
-│       ├── App.tsx                   # Central router & session checker
-│       ├── index.css                 # Custom design stylesheet
-│       ├── api/                      # Central API client and queries
-│       ├── components/               # Global components (Header, ThemeToggle, TaskChart)
-│       └── pages/                    # Login, Signup, Dashboard, Tasks, Audits
-└── tests/                            # Test Suites
-    ├── Dockerfile.e2e                # E2E container with Playwright & Chromium
-    ├── conftest.py                   # Global testing database configurations
-    ├── run-tests.sh                  # CI/CD End-to-end testing script
-    ├── unit/                         # Unit tests
-    ├── integration/                  # API routers integration tests
-    ├── e2e/                          # Playwright browser automation tests
-    │   ├── e2e.spec.ts               # E2E test file
-    │   └── playwright.config.ts      # Playwright browser runner configuration
-    └── performance/                  # Locust load test scripts
-```
-
----
-
-## Local Setup
+## 🚀 Quick Start Guide
 
 ### Prerequisites
 
-- **Docker & Docker Compose**: Required for running the application in development or production mode.
-- **Git Bash (for Windows)**: Required to execute the CI shell scripts (`make ci` or `tests/run-tests.sh`) natively on Windows.
+- **Docker & Docker Compose**: Required for running the application services.
 - **make**: Used for executing automated tasks via the Makefile.
-- **uv (optional)**: For local Python package management and virtual environment helper scripting.
-- **Node.js (optional)**: For running the frontend locally outside of Docker.
 
-### Run Application
-
-Launch the full development stack (PostgreSQL, Redis, Backend, Frontend) using Docker:
+### 1. Spin Up Application Stack
+Launch the database, cache, api backend, and frontend interface:
 ```bash
 make up-build
 ```
-Or if images are already built:
-```bash
-make up
-```
-Access the application at `http://localhost:8080` (API endpoint is available at `http://localhost:8000`).
+Access the application at `http://localhost:8080`. The FastAPI interactive docs are accessible at `http://localhost:8000/docs`.
 
-### Database Seeding
-
-Seed the development database with a test account (`demo_user` / `Password123!`) and 10+ historical tasks:
+### 2. Seed Mock Database Data
+Create a test account (`demo_user` / `Password123!`) seeded with 10+ historical tasks:
 ```bash
 make seed
 ```
 
 ---
 
-## Developer Command Reference
+## 💻 Developer command reference
 
-The Makefile contains shortcuts grouped logically:
+All common developer tasks are orchestrated via the main `Makefile`:
 
-### Development Commands
-- `make build` - Rebuild all dev images from scratch (no cache).
-- `make up` - Start the dev stack in the background.
-- `make up-build` - Build and start the dev stack.
-- `make down` - Stop and remove containers (keeps volumes).
-- `make down-clean` - Stop containers and delete database volumes (destroys data).
-- `make restart` - Restart all running containers.
+### Docker Operations
+- `make build` - Rebuild all dev images fresh (no cache).
+- `make up` - Start the full dev stack in the background.
+- `make up-build` - Build and start the full dev stack.
+- `make down` - Stop and remove containers (keep volumes).
+- `make down-clean` - Stop containers and remove volumes (DESTROYS DATA).
+- `make restart` - Restart all containers.
 - `make logs` - Follow logs from all containers.
-- `make shell-backend` - Open a bash shell inside the running backend container.
-- `make shell-frontend` - Open a shell inside the running frontend container.
+- `make logs-backend` - Follow backend logs only.
+- `make logs-frontend` - Follow frontend logs only.
+- `make shell-backend` - Open a shell in the running backend container.
+- `make shell-frontend` - Open a shell in the running frontend container.
 
-### Database Commands
-- `make migrate` - Run Alembic database migrations to the latest version.
-- `make migration name="add_table"` - Generate a new Alembic migration.
-- `make rollback` - Roll back the last database migration.
-- `make db-reset` - Roll back all migrations and re-apply them (destroys data).
-- `make db-shell` - Open an interactive psql shell in the PostgreSQL container.
-- `make redis-shell` - Open a redis-cli session.
+### Database Operations
+- `make migrate` - Run alembic database upgrade.
+- `make migration name="name"` - Create a new alembic revision revision.
+- `make rollback` - Roll back the last migration.
+- `make db-reset` - Roll back all migrations and re-apply them (DESTROYS DATA).
+- `make db-shell` - Open a psql shell inside the PostgreSQL container.
+- `make redis-shell` - Open a redis-cli shell.
+- `make seed` - Seed the dev database with demo data.
 
-### Code Quality Commands
-- `make check` - Runs all static quality checks (linter, formatter, type checker, security scanner, vulnerability scanner).
-- `make lint` - Runs Ruff to check for syntax and linting errors.
-- `make lint-fix` - Runs Ruff and auto-fixes fixable lint issues.
-- `make format` - Formats all Python source files using Ruff.
-- `make format-check` - Verifies if files are correctly formatted without changing them.
-- `make typecheck` - Performs strict static type checking with Mypy.
-- `make security` - Runs Bandit security scanning on Python backend code.
-- `make audit` - Scans Python package dependencies for known vulnerabilities (CVEs).
+### Consolidated Quality Checking & Code Style
+- **`make check`**: Runs all quality checks for backend and frontend sequentially. It prints subtask names and runs to completion, returning exit code `1` at the end if any checks failed.
+  - *Included checks:* Ruff, Ruff Formatter, MyPy, Bandit, Pip-Audit, Prettier, ESLint, TypeScript compilation, NPM Audit, React Doctor, and Lighthouse.
+- **`make check-fix`**: Automatically runs code fixes and formatters across both backend and frontend code (Ruff check/format, Prettier write, and ESLint fix).
 
----
-
-## Executing Automated Tests
-
-All automated tests are configured to run directly inside the Docker environment to avoid local environment mismatches.
-
-### Unit & Integration Tests (Pytest)
-Executes all pytest test cases inside the running backend container with code coverage reporting:
-```bash
-make test
-```
-To run unit tests only:
-```bash
-make test-unit
-```
-To run integration tests only:
-```bash
-make test-integration
-```
-
-### End-to-End browser tests (Playwright)
-Spins up the dedicated Playwright container to run full end-to-end browser workflows:
-```bash
-make test-e2e
-```
-
-### Performance Load tests (Locust)
-Launches headless Locust performance benchmarks simulating concurrent users making API requests:
-```bash
-make test-perf
-```
-
-### Run All Tests Sequentially
-```bash
-make test-all
-```
+### Automated Testing Suite
+- **`make test`**: Resets the local `reports/` folder, runs all unit/integration tests (pytest), vitest components, and Playwright E2E suites, saving coverage and JUnit XML reports to `reports/`.
+  - *Note:* The database password is dynamically resolved on the fly: if a running production container `todosphere-prod-db` is detected, it configures authentication password `changeme_in_prod`, else defaults to development password `postgrespassword`.
+- **`make test-perf`**: Run Locust performance benchmarking (default: 50 concurrent users, 10 spawn rate, 1 minute).
+- **`make test-stress`**: Run Locust stress testing (500 users, 50 spawn rate, 5 minutes).
 
 ---
 
-## Continuous Integration (CI) Pipeline
+## 📊 Compiled Quality Reports Directory (`reports/`)
 
-To validate a release exactly like a CI/CD build:
-```bash
-make ci
-```
-*Note for Windows users:* If `make ci` reports shell invocation errors, run the script explicitly via Git Bash in PowerShell:
-```powershell
-& "C:\Program Files\Git\bin\bash.exe" tests/run-tests.sh
-```
-This executes the automated end-to-end script which:
-1. Performs a full environment teardown and prunes old containers/volumes.
-2. Performs a clean Docker build of all services.
-3. Spins up postgres and redis and waits until they are healthy.
-4. Generates an ephemeral database using a timestamped name.
-5. Runs migrations and seeds the database with realistic fake data.
-6. Runs all 4 test suites (unit, integration, E2E, performance) and saves stdout logs locally to `tests/test-results-logs/`.
-7. Drops the temporary database and stops all services, leaving the system clean.
+All verification tasks save output files inside the root-level `reports/` folder:
+
+- **React Doctor Diagnostics**: `reports/react-doctor-report.txt` (Score: 96/100)
+- **Lighthouse Performance HTML Report**: `reports/lighthouse-report.html`
+- **Backend Test Coverage (HTML)**: `reports/backend-coverage/index.html`
+- **Backend JUnit XML Reports**: `reports/backend-report.xml`
+- **Frontend Test Coverage (HTML)**: `reports/frontend-coverage/index.html`
+- **Frontend JUnit XML Reports**: `reports/frontend-report.xml`
+- **Playwright Browser E2E HTML Report**: `reports/playwright-report/index.html`

@@ -23,10 +23,10 @@ async def test_readiness_endpoint_db_failure(
 @pytest.mark.asyncio
 async def test_readiness_endpoint_redis_failure(client: AsyncClient):
     """Test health readiness failure when Redis connection fails."""
-    with patch("src.routers.health.from_url") as mock_from_url:
+    with patch("src.routers.health.get_redis_client") as mock_get_redis:
         mock_redis = AsyncMock()
         mock_redis.ping.side_effect = Exception("Redis Connection Refused")
-        mock_from_url.return_value = mock_redis
+        mock_get_redis.return_value = mock_redis
 
         response = await client.get("/health/ready")
         assert response.status_code == 503

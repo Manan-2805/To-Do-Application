@@ -98,26 +98,6 @@ services:
       retries: 10
       start_period: 30s
 
-  e2e:
-    build:
-      context: ./frontend
-      dockerfile: tests/Dockerfile.e2e
-    container_name: todosphere-dev-e2e
-    profiles:
-      - test
-    depends_on:
-      frontend:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-    environment:
-      PLAYWRIGHT_BASE_URL: http://frontend:8080
-      CI: "true"
-    volumes:
-      - ./frontend/tests/e2e/e2e.spec.ts:/app/e2e.spec.ts
-      - ./frontend/tests/e2e/playwright.config.ts:/app/playwright.config.ts
-      - ./frontend/tests/test-results-logs:/app/test-results-logs
-
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: todosphere-dev-prometheus

@@ -1,9 +1,10 @@
 import React from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import { CheckSquare, LayoutDashboard, ListTodo, ClipboardList, LogOut } from "lucide-react";
 
-import ThemeToggle from "./ThemeToggle";
+import { CheckSquare, ClipboardList, LayoutDashboard, ListTodo, LogOut } from "lucide-react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+
 import { logout } from "../api/auth";
+import ThemeToggle from "./ThemeToggle";
 
 interface HeaderProps {
   username?: string;
@@ -25,10 +26,10 @@ export const Header: React.FC<HeaderProps> = ({ username, onLogout }) => {
 
   return (
     <header className="app-header fade-in">
-      <div className="brand" onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>
+      <Link to="/dashboard" className="brand" style={{ cursor: "pointer", textDecoration: "none" }}>
         <CheckSquare size={28} style={{ color: "var(--accent-color)" }} />
         <span>TodoSphere</span>
-      </div>
+      </Link>
 
       <nav style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
         <NavLink
@@ -67,9 +68,16 @@ export const Header: React.FC<HeaderProps> = ({ username, onLogout }) => {
         )}
         <ThemeToggle />
         <button
+          type="button"
           onClick={handleLogout}
           className="btn btn-secondary"
-          style={{ padding: "0.5rem 1rem", fontSize: "0.875rem", display: "flex", alignItems: "center", gap: "0.25rem" }}
+          style={{
+            padding: "0.5rem 1rem",
+            fontSize: "0.875rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.25rem",
+          }}
           aria-label="Logout"
         >
           <LogOut size={16} />

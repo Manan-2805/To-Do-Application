@@ -19,7 +19,7 @@ time       ?= 60s
 # ──────────────────────────────────────────
 .PHONY: help
 help:  ## Show this help message
-	@python -c "import sys, re; lines = [m.groups() for f in sys.argv[1:] for l in open(f, encoding='utf-8') if (m := re.match(r'^([a-zA-Z_-]+):.*?## (.*)$$', l))]; [print(f'  \x1b[36m{k:<22}\x1b[0m {v}') for k, v in sorted(lines)]" $(MAKEFILE_LIST)
+	@python -B -c "import sys, re; lines = [m.groups() for f in sys.argv[1:] for l in open(f, encoding='utf-8') if (m := re.match(r'^([a-zA-Z_-]+):.*?## (.*)$$', l))]; [print(f'  \x1b[36m{k:<22}\x1b[0m {v}') for k, v in sorted(lines)]" $(MAKEFILE_LIST)
 
 # ──────────────────────────────────────────
 # Development
@@ -100,27 +100,63 @@ seed:  ## Seed the dev database with demo data
 	$(DC) exec backend python -B scripts/seed.py
 
 # ──────────────────────────────────────────
-# Testing (runs inside backend container)
+# Testing & Code Quality
 # ──────────────────────────────────────────
+.PHONY: check
+check:  ## Run all code quality checks (lint, format, typecheck, security) for backend and frontend
+	@powershell -Command "$$failed = $$false; \
+	New-Item -ItemType Directory -Force -Path reports -ErrorAction SilentlyContinue | Out-Null; \
+	Write-Host '=== [1/11] Running Ruff Linter (Backend) ===' -ForegroundColor Cyan; cd backend; uv run ruff check src/ tests/; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Backend Ruff check failed!' -ForegroundColor Red } else { Write-Host 'Backend Ruff check passed.' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [2/11] Running Ruff Format Check (Backend) ===' -ForegroundColor Cyan; cd backend; uv run ruff format --check src/ tests/ scripts/; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Backend Ruff format check failed!' -ForegroundColor Red } else { Write-Host 'Backend Ruff format check passed.' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [3/11] Running MyPy Typecheck (Backend) ===' -ForegroundColor Cyan; cd backend; uv run mypy -p src; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Backend MyPy typecheck failed!' -ForegroundColor Red } else { Write-Host 'Backend MyPy typecheck passed.' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [4/11] Running Bandit Security Scan (Backend) ===' -ForegroundColor Cyan; cd backend; uv run bandit -c pyproject.toml -r src/; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Backend Bandit scan failed!' -ForegroundColor Red } else { Write-Host 'Backend Bandit scan passed.' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [5/11] Running Pip-Audit (Backend) ===' -ForegroundColor Cyan; cd backend; uv run pip-audit; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Backend Pip-Audit failed!' -ForegroundColor Red } else { Write-Host 'Backend Pip-Audit passed.' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [6/11] Running Prettier Format Check (Frontend) ===' -ForegroundColor Cyan; cd frontend; npm run format:check; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Frontend Prettier format check failed!' -ForegroundColor Red } else { Write-Host 'Frontend Prettier format check passed.' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [7/11] Running ESLint (Frontend) ===' -ForegroundColor Cyan; cd frontend; npm run lint; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Frontend ESLint failed!' -ForegroundColor Red } else { Write-Host 'Frontend ESLint passed.' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [8/11] Running TypeScript Compiler (Frontend) ===' -ForegroundColor Cyan; cd frontend; npx tsc -b; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Frontend TypeScript compilation failed!' -ForegroundColor Red } else { Write-Host 'Frontend TypeScript compilation passed.' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [9/11] Running NPM Audit (Frontend) ===' -ForegroundColor Cyan; cd frontend; npm audit; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Frontend NPM Audit failed!' -ForegroundColor Red } else { Write-Host 'Frontend NPM Audit passed.' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [10/11] Running React Doctor (Frontend) ===' -ForegroundColor Cyan; cd frontend; npx react-doctor@latest --yes --verbose > ../reports/react-doctor-report.txt 2>&1; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'React Doctor found issues or failed! Check reports/react-doctor-report.txt' -ForegroundColor Red } else { Write-Host 'React Doctor completed. Report written to reports/react-doctor-report.txt' -ForegroundColor Green }; cd ..; \
+	Write-Host '=== [11/11] Running Lighthouse Audit ===' -ForegroundColor Cyan; cd frontend; npx lighthouse http://localhost:8080/login --only-categories=performance,accessibility,best-practices,seo --output=html --output-path=../reports/lighthouse-report.html > $$null 2>&1; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Lighthouse audit failed! (Is the application running at http://localhost:8080?)' -ForegroundColor Red } else { Write-Host 'Lighthouse audit completed. Report written to reports/lighthouse-report.html' -ForegroundColor Green }; cd ..; \
+	if ($$failed) { Write-Host '=== Quality Checks FAILED ===' -ForegroundColor Red; exit 1 } else { Write-Host '=== Quality Checks PASSED ===' -ForegroundColor Green }"
+
+.PHONY: check-fix
+check-fix:  ## Run auto-fixes (ruff lint/format, prettier, eslint fix)
+	@powershell -Command "$$failed = $$false; \
+	Write-Host '=== Auto-fixing Backend Code ===' -ForegroundColor Cyan; cd backend; uv run ruff check --fix src/ tests/; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Backend Ruff check --fix failed!' -ForegroundColor Red }; uv run ruff format src/ tests/ scripts/; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Backend Ruff format failed!' -ForegroundColor Red }; cd ..; \
+	Write-Host '=== Auto-fixing Frontend Code ===' -ForegroundColor Cyan; cd frontend; npm run format; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Frontend format failed!' -ForegroundColor Red }; npx eslint . --fix; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Frontend ESLint --fix failed!' -ForegroundColor Red }; cd ..; \
+	if ($$failed) { Write-Host '=== Auto-Fix FAILED ===' -ForegroundColor Red; exit 1 } else { Write-Host '=== Auto-Fix COMPLETED ===' -ForegroundColor Green }"
+
 .PHONY: test
-test:  ## Run all pytest (unit + integration) with coverage
-	$(DC) exec backend python -B -m pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
-
-.PHONY: test-unit
-test-unit:  ## Run unit tests only
-	$(DC) exec backend python -B -m pytest tests/unit/ -v --tb=short
-
-.PHONY: test-integration
-test-integration:  ## Run integration tests with coverage
-	$(DC) exec backend python -B -m pytest tests/integration/ -v --tb=short --cov=src --cov-report=term-missing
-
-.PHONY: test-e2e
-test-e2e:  ## Run Playwright E2E tests (builds e2e container)
-	$(DC) --profile test run --rm e2e
-
-.PHONY: test-e2e-local
-test-e2e-local:  ## Run Playwright E2E tests locally on host in headed mode with step delay
-	cd frontend/tests/e2e && npm install && npx playwright install chromium && npx playwright test
+test:  ## Run all tests (backend, frontend unit, and Playwright E2E) and gather reports in reports/
+	@powershell -Command "$$failed = $$false; \
+	Write-Host '=== Preparing reports/ directory ===' -ForegroundColor Cyan; \
+	Remove-Item -Path reports -Recurse -Force -ErrorAction SilentlyContinue; \
+	New-Item -ItemType Directory -Force -Path reports | Out-Null; \
+	\
+	Write-Host '=== Detecting Database Password ===' -ForegroundColor Cyan; \
+	$$db_pwd = 'postgrespassword'; \
+	if ($$env:DB_PASSWORD) { \
+		$$db_pwd = $$env:DB_PASSWORD; \
+		Write-Host 'Using DB_PASSWORD from environment override.' -ForegroundColor Gray; \
+	} elseif (docker ps --filter name=todosphere-prod-db --filter status=running --quiet) { \
+		$$db_pwd = 'changeme_in_prod'; \
+		Write-Host 'Detected running prod container todosphere-prod-db, using password: changeme_in_prod' -ForegroundColor Gray; \
+	} else { \
+		Write-Host 'Using default development password: postgrespassword' -ForegroundColor Gray; \
+	}; \
+	\
+	Write-Host '=== Running pytest (Backend Unit + Integration) ===' -ForegroundColor Cyan; \
+	$$env:DATABASE_URL=\"postgresql+asyncpg://postgres:$$db_pwd@127.0.0.1:5432/todosphere\"; \
+	$$env:REDIS_URL='redis://127.0.0.1:6379/0'; \
+	cd backend; uv run python -B -m pytest tests/ -v --tb=short --cov=src --cov-report=html:../reports/backend-coverage --junitxml=../reports/backend-report.xml; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Backend pytest suite failed!' -ForegroundColor Red } else { Write-Host 'Backend pytest suite passed.' -ForegroundColor Green }; cd ..; \
+	\
+	Write-Host '=== Running Vitest Unit Tests (Frontend) ===' -ForegroundColor Cyan; \
+	cd frontend; npx vitest run --coverage --reporter=default --reporter=junit --outputFile=../reports/frontend-report.xml; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Frontend Vitest suite failed!' -ForegroundColor Red } else { Write-Host 'Frontend Vitest suite passed.' -ForegroundColor Green }; cd ..; \
+	\
+	Write-Host '=== Running Playwright E2E Tests ===' -ForegroundColor Cyan; \
+	cd frontend; npx playwright install chromium; $$env:PLAYWRIGHT_HTML_REPORT='../reports/playwright-report'; npx playwright test --reporter=html; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; Write-Host 'Frontend Playwright E2E suite failed!' -ForegroundColor Red } else { Write-Host 'Frontend Playwright E2E suite passed.' -ForegroundColor Green }; cd ..; \
+	\
+	if ($$failed) { Write-Host '=== Test Suites FAILED ===' -ForegroundColor Red; exit 1 } else { Write-Host '=== Test Suites PASSED ===' -ForegroundColor Green }"
 
 .PHONY: test-perf
 test-perf:  ## Run Locust performance tests (customizable: make test-perf users=100 rate=10 time=60s)
@@ -143,75 +179,15 @@ test-stress:  ## Run Locust stress tests (customizable: make test-stress users=1
 		--html tests/performance/locust-report.html \
 		--host http://localhost:8000
 
-.PHONY: test-all
-test-all: 
-	- $(DC) exec backend python -B -m pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
-	-$(DC) exec backend python -B -m pytest tests/unit/ -v --tb=short
-	-$(DC) exec backend python -B -m pytest tests/integration/ -v --tb=short --cov=src --cov-report=term-missing
-	-$(DC) --profile test run --rm e2e
-	-$(DC) exec backend python -B -m locust \
-		-f tests/performance/locustfile.py \
-		--headless -u $(users) -r $(rate) --run-time $(time) \
-		--only-summary \
-		--html tests/performance/locust-report.html \
-		--host http://localhost:8000
-
-
-# ──────────────────────────────────────────
-# CI Pipeline
-# ──────────────────────────────────────────
-.PHONY: ci
-ci:  ## Full test pipeline using the running stack (CI pipeline)
-	bash scripts/run-tests.sh
-
 .PHONY: rebuild-backend
-rebuild-backend:  ## Rebuild and restart backend container (e.g. when pyproject.toml or uv.lock changes)
+rebuild-backend:  ## Rebuild and restart backend container
 	$(DC) build backend
 	$(DC) up -d --force-recreate backend
 
 .PHONY: rebuild-frontend
-rebuild-frontend:  ## Rebuild and restart frontend container (e.g. when package-lock.json changes)
+rebuild-frontend:  ## Rebuild and restart frontend container
 	$(DC) build frontend
 	$(DC) up -d --force-recreate frontend
-
-# ──────────────────────────────────────────
-# Code Quality (runs inside backend container)
-# ──────────────────────────────────────────
-.PHONY: lint
-lint:  ## Run ruff linter on src/ and tests/
-	cd backend && uv run ruff check src/ tests/
-
-.PHONY: lint-fix
-lint-fix:  ## Run ruff linter with auto-fix
-	cd backend && uv run ruff check --fix src/ tests/
-
-.PHONY: format
-format:  ## Format code with ruff
-	cd backend && uv run ruff format src/ tests/ scripts/
-
-.PHONY: format-check
-format-check:  ## Check formatting without making changes
-	cd backend && uv run ruff format --check src/ tests/ scripts/
-
-.PHONY: typecheck
-typecheck:  ## Run mypy type checker on src/
-	cd backend && uv run mypy -p src
-
-.PHONY: security
-security:  ## Run bandit security scan on src/
-	cd backend && uv run bandit -c pyproject.toml -r src/
-
-.PHONY: audit
-audit:  ## Scan dependencies for known CVEs
-	cd backend && uv run pip-audit
-
-.PHONY: check
-check:  ## Run all code quality checks (lint, format, typecheck, security, audit)
-	cd backend && uv run ruff check src/ tests/
-	cd backend && uv run ruff format --check src/ tests/ scripts/
-	cd backend && uv run mypy -p src
-	cd backend && uv run bandit -c pyproject.toml -r src/
-	cd backend && uv run pip-audit
 
 # ──────────────────────────────────────────
 # Production
@@ -239,8 +215,8 @@ clean:  ## Remove upload files and stop containers (keep images)
 
 .PHONY: clean-all
 clean-all:  ## Remove containers, volumes, images and build cache
-	$(DC) --profile test down -v --remove-orphans
-	docker image rm $(APP)-backend $(APP)-frontend $(APP)-e2e 2>/dev/null || true
+	$(DC) down -v --remove-orphans
+	docker image rm $(APP)-backend $(APP)-frontend 2>/dev/null || true
 	docker builder prune -f
 	rm -rf backend/uploads/* 2>/dev/null || true
 	rm -rf frontend/tests/test-results-logs/* 2>/dev/null || true

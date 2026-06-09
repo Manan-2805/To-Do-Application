@@ -16,7 +16,7 @@ const BASE_URL = (import.meta.env.VITE_API_URL || "/api/v1").replace(/\/$/, "");
 class APIClient {
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = `${BASE_URL}${path}`;
-    
+
     // Ensure credentials: "include" so HttpOnly cookies are transmitted
     const defaultOptions: RequestInit = {
       credentials: "include",
@@ -35,9 +35,13 @@ class APIClient {
     }
 
     const response = await fetch(url, defaultOptions);
-    
+
     // Handle HTTP status code 401 with potential silent refresh trigger
-    if (response.status === 401 && !path.includes("/auth/refresh") && !path.includes("/auth/login")) {
+    if (
+      response.status === 401 &&
+      !path.includes("/auth/refresh") &&
+      !path.includes("/auth/login")
+    ) {
       try {
         const refreshOk = await this.refreshToken();
         if (refreshOk) {

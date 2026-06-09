@@ -1,0 +1,23 @@
+module.exports = {
+  ci: {
+    collect: {
+      url: ["http://localhost:8080/"],
+      numberOfRuns: 1,
+      settings: {
+        preset: "desktop",
+        chromeFlags: "--no-sandbox --headless --disable-gpu --disable-dev-shm-usage",
+      },
+    },
+    assert: {
+      assertions: {
+        "categories:performance": ["warn", { minScore: 0.85 }],
+        "categories:accessibility": ["error", { minScore: 0.9 }],
+        "categories:best-practices": ["error", { minScore: 0.9 }],
+        "categories:seo": ["error", { minScore: 0.9 }],
+      },
+    },
+    upload: {
+      target: "temporary-public-storage",
+    },
+  },
+};
