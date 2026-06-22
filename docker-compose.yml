@@ -98,31 +98,6 @@ services:
       retries: 10
       start_period: 30s
 
-  prometheus:
-    image: prom/prometheus:v2.52.0
-    container_name: todosphere-dev-prometheus
-    restart: unless-stopped
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
-    depends_on:
-      backend:
-        condition: service_healthy
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    container_name: todosphere-dev-cadvisor
-    restart: unless-stopped
-    device_cgroup_rules:
-      - 'a *:* rmw'
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
-
 volumes:
   postgres_data:
     name: todosphere_dev_postgres_data

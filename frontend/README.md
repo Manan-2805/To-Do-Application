@@ -100,6 +100,11 @@ Execute quality check targets locally:
 
 ```bash
 npm run format:check
+```
+
+To auto-format the codebase:
+
+```bash
 npm run format
 ```
 
@@ -131,6 +136,17 @@ Install headless chromium binaries and run local end-to-end tests:
 npx playwright install chromium
 npx playwright test
 ```
+
+### Deployment Quality Gates & Audits
+
+During the deployment workflow, the frontend is subjected to automated tests and strict score thresholds:
+
+- **Playwright E2E**: Validates user login, task CRUD lifecycle, state updates, and file upload capabilities under a simulated production environment.
+- **Lighthouse Performance & SEO Audits**: Runs automatically against the client. The deployment fails and is auto-reverted if scores fall below:
+  - **Performance**: >= 75
+  - **Accessibility**: >= 80
+  - **Best Practices**: >= 80
+  - **SEO**: >= 75
 
 ---
 

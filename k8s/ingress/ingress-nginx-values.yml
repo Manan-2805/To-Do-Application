@@ -1,0 +1,39 @@
+# Helm values for ingress-nginx in a KinD cluster.
+# Install with:
+#   helm install ingress-nginx ingress-nginx/ingress-nginx \
+#     --namespace ingress-nginx \
+#     --create-namespace \
+#     --values k8s/ingress/ingress-nginx-values.yml
+
+controller:
+  # Bind the controller directly to the host port via hostPort.
+  # Required for KinD because there is no cloud LoadBalancer available.
+  hostPort:
+    enabled: true
+
+  # Use NodePort so the controller is reachable via the KinD node.
+  service:
+    type: NodePort
+
+  # Only schedule the ingress controller on nodes labelled ingress-ready=true.
+  # This label is applied to the control-plane node in k8s/kind-config.yml.
+  nodeSelector:
+    ingress-ready: "true"
+
+  # Tolerate the control-plane taint so the controller can run there.
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+
+  # Reduce resource footprint for a local single-node KinD cluster.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi

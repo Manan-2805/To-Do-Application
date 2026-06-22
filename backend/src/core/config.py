@@ -31,9 +31,9 @@ class Settings(BaseSettings):
     STORAGE_PROVIDER: str = "local"  # "local" or "s3"
     UPLOAD_DIR: str = "/app/uploads"
     S3_BUCKET_NAME: str = "todosphere-attachments"
-    S3_ACCESS_KEY: str = "minio_dev_access_key"
-    S3_SECRET_KEY: str = "minio_dev_secret_key"
-    S3_ENDPOINT_URL: str = "http://minio:9000"
+    S3_ACCESS_KEY: str = ""
+    S3_SECRET_KEY: str = ""
+    S3_ENDPOINT_URL: str = ""
 
 
 settings = Settings()

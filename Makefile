@@ -232,3 +232,58 @@ clean-all:  ## Remove containers, volumes, images and build cache
 	docker builder prune -f
 	rm -rf backend/uploads/* 2>/dev/null || true
 	rm -rf frontend/tests/test-results-logs/* 2>/dev/null || true
+
+# ──────────────────────────────────────────
+# Infrastructure (LocalStack, Prometheus)
+# ──────────────────────────────────────────
+DC_INFRA := docker compose -f docker-compose.infra.yml
+
+.PHONY: infra-up
+infra-up:  ## Start infrastructure services (LocalStack, Prometheus) in background
+	$(DC_INFRA) up -d
+
+.PHONY: infra-down
+infra-down:  ## Stop infrastructure services
+	$(DC_INFRA) down
+
+.PHONY: infra-logs
+infra-logs:  ## Follow infrastructure service logs
+	$(DC_INFRA) logs -f
+
+.PHONY: infra-status
+infra-status:  ## Show infrastructure container status
+	$(DC_INFRA) ps
+
+# ──────────────────────────────────────────
+# KinD Cluster & Kubernetes
+# ──────────────────────────────────────────
+KIND_CLUSTER := todosphere
+
+.PHONY: kind-create
+kind-create:  ## Create the KinD cluster (one-time setup)
+	kind create cluster --config k8s/kind-config.yml --name $(KIND_CLUSTER)
+
+.PHONY: kind-delete
+kind-delete:  ## Delete the KinD cluster
+	kind delete cluster --name $(KIND_CLUSTER)
+
+.PHONY: kind-status
+kind-status:  ## Show KinD cluster info and pod status
+	kubectl cluster-info --context kind-$(KIND_CLUSTER)
+	kubectl get pods -n todosphere
+
+.PHONY: k8s-apply
+k8s-apply:  ## Apply all Kubernetes manifests in dependency order (excludes secrets.yml)
+	kubectl apply -f k8s/namespace.yml
+	kubectl apply -f k8s/configmap.yml
+	kubectl apply -f k8s/postgres/
+	kubectl apply -f k8s/redis/
+	kubectl apply -f k8s/localstack/
+	kubectl apply -f k8s/backend/
+	kubectl apply -f k8s/frontend/
+	kubectl apply -f k8s/ingress/ingress.yml
+
+.PHONY: k8s-delete
+k8s-delete:  ## Remove all application resources from KinD (keeps the cluster itself)
+	kubectl delete namespace todosphere --ignore-not-found
+

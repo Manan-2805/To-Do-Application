@@ -22,29 +22,32 @@ For detailed documentation, development setup, and API details on each specific 
 
 ## 🏗️ Architecture Diagram
 
-The application is composed of six Docker services communicating over a shared bridge network.
+The application is composed of core services orchestrated by Docker Compose, auxiliary infrastructure services for simulation and observability, and production deployment manifests for Kubernetes.
 
 ```mermaid
 flowchart TD
     User(["Browser / Client"])
 
-    subgraph Docker["Docker Compose Network"]
+    subgraph ComposeApp["Docker Compose Application Stack (docker-compose.yml)"]
         direction TB
-
         FE["Frontend\nReact 19 + Vite\nNginx (prod) / Vite Dev Server\n:8080"]
         BE["Backend\nFastAPI + Granian (prod)\nPython 3.12\n:8000"]
         DB[("Database\nPostgreSQL 16\n:5432")]
         Cache[("Cache & Rate Limiter\nRedis 7\n:6379")]
+    end
+
+    subgraph ComposeInfra["Infrastructure Stack (docker-compose.infra.yml)"]
+        direction TB
+        LocalStack[("LocalStack\nAWS S3 Simulation\n:4566")]
         Prom["Prometheus\nMetrics Collection\n:9090"]
-        CAdv["cAdvisor\nContainer Metrics\n:8080"]
     end
 
     User -->|"HTTP :8080"| FE
     FE -->|"REST API /api/*"| BE
     BE -->|"SQL (asyncpg)"| DB
     BE -->|"GET/SET/DEL"| Cache
-    BE -->|"/metrics"| Prom
-    CAdv -->|"container stats"| Prom
+    BE -->|"Metrics /metrics"| Prom
+    BE -->|"Object Storage (aiobotocore)"| LocalStack
 ```
 
 ---
@@ -57,13 +60,14 @@ flowchart TD
 | **Backend** | FastAPI, Python 3.12, Granian (ASGI, prod) |
 | **Database** | PostgreSQL 16, SQLAlchemy 2.x, Alembic migrations |
 | **Cache / Rate Limiting** | Redis 7, SlowAPI |
+| **Cloud Storage** | AWS S3 / LocalStack (simulated S3 using aiobotocore) |
 | **Auth** | JWT (RS256-style rotation), HttpOnly cookies, Argon2id password hashing |
 | **Package Managers** | `uv` (Python), `npm` (Node) |
 | **Quality Tools** | Ruff, Prettier, ESLint, MyPy (strict), Bandit, Pip-Audit, NPM Audit |
 | **Testing** | Pytest (unit/integration), Vitest (component), Playwright (E2E), Locust (load) |
-| **Security Scanning** | Trivy (Docker image CVE scanning) |
+| **Security Scanning** | Trivy (Docker image CVE scanning), TruffleHog (Secrets scanning) |
 | **Observability** | Prometheus metrics, structured JSON logs, `X-Correlation-ID` request tracing |
-| **Orchestration** | Docker Compose, named volumes, multi-stage builds, non-root containers |
+| **Orchestration / K8s** | Docker Compose, KinD (Kubernetes in Docker), Ingress Nginx, HPA |
 
 ---
 
@@ -91,19 +95,57 @@ The following numbers are pulled from the latest generated reports in the `repor
 3. **Database-Layer Constraints**: Check constraints (`expected_end_time >= start_time`, `actual_end_time >= start_time`) are enforced directly at the PostgreSQL level, not only in application code.
 4. **Task State Machine**: Status transitions are restricted (e.g. `Done` is terminal). Durations are calculated automatically on completion.
 5. **Background Scheduler**: An async task transitions overdue tasks to `Missed` status without blocking request handling.
-6. **Storage Provider Abstraction**: An abstract `StorageProvider` interface supports local and S3 backends. File uploads are restricted to 5 MB and `.jpg`, `.jpeg`, `.png`, `.webp` formats.
+6. **Asynchronous S3 Storage Provider**: Implements a production-ready async storage provider utilizing `aiobotocore` that integrates seamlessly with AWS S3 or LocalStack. File uploads are validated (5 MB size limit, formats: `.jpg`, `.jpeg`, `.png`, `.webp`).
 7. **Structured JSON Logging**: Request-scoped middleware injects a unique `X-Correlation-ID` into every log entry using context variables, enabling distributed trace correlation.
 8. **Security Headers**: All responses carry `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy` headers via middleware.
 9. **Trivy Image Scanning**: Both production Docker images are scanned for CVEs using `make trivy-scan`. All HIGH and CRITICAL findings are patched via `apt-get upgrade` / `apk upgrade` in each Dockerfile.
+10. **Dual-Gate CI/CD with Auto-Revert**: An automated PR Quality Gate (GitHub-hosted runner) and a Deploy Gate (self-hosted Windows runner) ensure code quality. The Deploy Gate starts a temporary test stack, runs Playwright/Lighthouse/Locust, and rolls back Kubernetes deployments or auto-reverts the git merge on failure.
+11. **Production-grade Local Kubernetes (KinD)**: Complete deployment orchestration via Kubernetes manifests using Ingress Nginx, horizontal pod autoscaling (HPA), persistent volumes, secret configuration, and statefulsets.
+
+---
+
+## 🚀 Setup Prerequisites & Configuration
+
+Before running the application stack or setting up the production pipeline, ensure the following prerequisites are installed and configured:
+
+### 1. Local Tooling & Utilities
+- **Docker & Docker Compose**: For building, running, and testing containerized services.
+- **make**: CLI utility for running automation recipes via the root `Makefile`.
+- **kubectl**: Kubernetes command-line tool for cluster communication and manifest orchestration.
+- **Helm**: Kubernetes package manager used to deploy ingress controllers (e.g., `ingress-nginx`).
+- **KinD (Kubernetes in Docker)**: Lightweight tool for running local Kubernetes clusters.
+- **cloudflared**: Cloudflare Tunnel client to securely expose local ingress ports (`localhost:8080`) to the public internet for webhook or CI callbacks.
+- **Node.js (v18+) & Python (v3.12+)**: Node is required for running frontend test suites (Vitest, Playwright, Lighthouse audits); Python and `uv` are needed for running backend code checks (Ruff, MyPy, Bandit, pip-audit).
+
+### 2. GitHub Actions Self-Hosted Runner
+Workflow 2 (Deploy Gate) executes on a local self-hosted Windows runner. The host machine running the self-hosted runner must satisfy the following software dependencies:
+- **Runner Configuration**: Set up the runner in your repository settings under **Settings > Actions > Runners** using a new self-hosted Windows runner.
+- **Tags**: Configure the runner with the following labels: `self-hosted`, `windows`, `local`, `kind`.
+- **Active Agent**: The runner agent must be active (`.\run.cmd` executed in a dedicated terminal).
+- **Google Chrome**: Installed on the host system (required for headless Lighthouse audits).
+- **Node.js**: Installed on the host system (required to run `npx lighthouse` and `npx playwright`).
+- **Python 3.12 & uv**: Installed on the host system (required to run backend test scripts, locust load tests, and post-test assessment scripts).
+- **Docker Desktop / Docker Engine**: Active and running on the host system to run the test stack (`docker-compose.test.yml`) and deploy to KinD.
+- **kubectl & Helm**: Installed and accessible in the system PATH so the runner can manage the KinD Kubernetes cluster.
+
+### 3. GitHub Secrets Configuration
+The CI/CD workflows require the following repository secrets configured under **Settings > Secrets and variables > Actions > Repository secrets**:
+
+| Secret Name | Purpose | Example Value |
+|---|---|---|
+| `KUBECONFIG_PATH` | Path to the local Kubernetes config file on the runner | `C:/Users/<user>/.kube/config` |
+| `DB_PASSWORD` | Production PostgreSQL password | `prod_secure_password_123` |
+| `JWT_ACCESS_SECRET` | Secret key used for signing short-lived access tokens | `prod_access_secret_key_rotation_token` |
+| `JWT_REFRESH_SECRET` | Secret key used for signing refresh tokens | `prod_refresh_secret_key_rotation_token` |
+| `CORS_ORIGINS` | JSON array of permitted origins | `["http://localhost:8080"]` |
+| `CLOUDFLARE_TUNNEL_URL` | Public tunnel URL generated by cloudflared | `https://todosphere.trycloudflare.com` |
+| `NOTIFY_EMAIL_USER` | Gmail SMTP sender address for status reports | `ci-notifications@gmail.com` |
+| `NOTIFY_EMAIL_PASS` | Gmail SMTP App Password (not standard account password) | `abcd efgh ijkl mnop` |
+| `NOTIFY_EMAIL_TO` | Target recipient address for CI/CD alerts | `dev-team@company.com` |
 
 ---
 
 ## 🚀 Quick Start Guide
-
-### Prerequisites
-
-- **Docker & Docker Compose**: Required for running the application services.
-- **make**: Used for executing automated tasks via the Makefile.
 
 ### 1. Spin Up Application Stack
 
@@ -129,7 +171,7 @@ make seed
 
 All common developer tasks are orchestrated via the root `Makefile`.
 
-### Docker Operations
+### Docker Operations (Core Stack)
 
 | Command | Description |
 |---|---|
@@ -144,6 +186,25 @@ All common developer tasks are orchestrated via the root `Makefile`.
 | `make logs-frontend` | Follow frontend logs only |
 | `make shell-backend` | Open a shell in the running backend container |
 | `make shell-frontend` | Open a shell in the running frontend container |
+
+### Infrastructure Operations (LocalStack, Prometheus)
+
+| Command | Description |
+|---|---|
+| `make infra-up` | Start infrastructure services (LocalStack, Prometheus) in the background |
+| `make infra-down` | Stop and remove infrastructure containers |
+| `make infra-logs` | Follow logs from infrastructure services |
+| `make infra-status` | Show status of infrastructure containers |
+
+### Kubernetes & KinD Operations
+
+| Command | Description |
+|---|---|
+| `make kind-create` | Create the local KinD cluster (`todosphere`) using `k8s/kind-config.yml` |
+| `make kind-delete` | Delete the KinD cluster |
+| `make kind-status` | Check cluster information and active pod status in `todosphere` namespace |
+| `make k8s-apply` | Apply Kubernetes manifests in dependency order to the cluster (namespace, configmap, postgres, redis, localstack, backend, frontend, ingress) |
+| `make k8s-delete` | Delete the `todosphere` namespace and all its resources from the cluster |
 
 ### Database Operations
 
@@ -191,3 +252,71 @@ All verification tasks write output to the root-level `reports/` folder:
 | Frontend Test Coverage (HTML) | `reports/frontend-coverage/index.html` |
 | Frontend JUnit XML | `reports/frontend-report.xml` |
 | Playwright E2E HTML Report | `reports/playwright-report/index.html` |
+
+---
+
+## 🛠️ Developer Setup and Workflow
+
+### Local Development (Daily Work)
+1. **Start application services**:
+   ```bash
+   docker compose up -d
+   ```
+2. **Start infrastructure services** (when S3 or Prometheus simulation is needed):
+   ```bash
+   make infra-up
+   ```
+3. **Configure Local Environment variables**:
+   To enable S3 upload simulation in local development, configure `backend/.env` with:
+   ```env
+   STORAGE_PROVIDER=s3
+   S3_BUCKET_NAME=todosphere-attachments
+   S3_ACCESS_KEY=mock_access_key
+   S3_SECRET_KEY=mock_secret_key
+   S3_ENDPOINT_URL=http://localhost:4566
+   ```
+4. **Access URLs**:
+   - Backend API: `http://localhost:8000`
+   - Frontend Web App: `http://localhost:8080`
+
+### KinD Cluster (Local Production Environment)
+1. **Runner Prerequisites**:
+   - Ensure the self-hosted runner is active on your machine:
+     ```bash
+     .\run.cmd
+     ```
+   - Ensure the Cloudflare tunnel is running in a separate terminal:
+     ```bash
+     cloudflared tunnel --url http://localhost:8080
+     ```
+2. **Create cluster and set up Ingress Controller**:
+   Create the cluster using the Makefile command:
+   ```bash
+   make kind-create
+   ```
+   Install the Nginx Ingress Controller using Helm:
+   ```bash
+   helm install ingress-nginx ingress-nginx/ingress-nginx \
+     --namespace ingress-nginx \
+     --create-namespace \
+     --values k8s/ingress/ingress-nginx-values.yml
+   ```
+3. **Cluster Lifecycle & Deployment**:
+   - Check cluster info and pod health:
+     ```bash
+     make kind-status
+     ```
+   - Manually apply all manifests (in correct order, excluding `secrets.yml` which is populated dynamically in CI):
+     ```bash
+     make k8s-apply
+     ```
+
+### CI/CD Pipeline
+- **PR Quality Gate (Workflow 1)**: Triggered automatically on GitHub-hosted runners when a Pull Request is opened or updated targeting `main`. Skips checks automatically on revert branches/titles (`revert:`).
+  - *Steps:* Runs linting (Ruff/ESLint), formatting check (Ruff/Prettier), strict type checking (MyPy/TypeScript compile), security analysis (Bandit/TruffleHog/Trivy FS scan), builds and scans backend and frontend images, pushes built images to GHCR tagged with the PR SHA.
+- **Deploy Gate (Workflow 2)**: Triggers automatically on the local self-hosted runner when a PR is merged into `main` (push to main).
+  - *Steps:* Pulls the tagged PR images, launches a temporary isolated test stack using `docker-compose.test.yml`, runs migrations, runs live validation tests (Playwright E2E suite, Lighthouse performance audits, Locust smoke tests). If any test fails, it tears down the stack, deletes the deployment, opens an automated revert PR, and alerts the team. On success, it applies secrets and configurations to the KinD cluster, updates deployment images, verifies rollouts, and tags the stable images as `latest` in GHCR.
+
+### Required Always-On Terminals
+- **Terminal 1**: `.\run.cmd` (within your GitHub runner folder) — must remain running to execute Workflow 2.
+- **Terminal 2**: `cloudflared tunnel --url http://localhost:8080` — must remain running to expose the Ingress public port to the internet.

@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: localstack
+  namespace: todosphere
+  labels:
+    app: localstack
+    app.kubernetes.io/part-of: todosphere
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: localstack
+  template:
+    metadata:
+      labels:
+        app: localstack
+    spec:
+      containers:
+        - name: localstack
+          image: localstack/localstack:3.4
+          ports:
+            - containerPort: 4566
+              name: gateway
+          env:
+            - name: SERVICES
+              value: s3
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+            - name: LOCALSTACK_AUTH_TOKEN
+              value: ""
+          volumeMounts:
+            - name: localstack-data
+              mountPath: /var/lib/localstack
+            - name: localstack-init
+              mountPath: /etc/localstack/init/ready.d
+          livenessProbe:
+            httpGet:
+              path: /_localstack/health
+              port: 4566
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["awslocal", "s3", "ls"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: localstack-data
+          persistentVolumeClaim:
+            claimName: localstack-data
+        - name: localstack-init
+          configMap:
+            name: localstack-init
+            defaultMode: 0755

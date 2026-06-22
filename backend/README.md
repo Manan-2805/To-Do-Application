@@ -9,6 +9,7 @@ This directory contains the source code for the high-performance, secure, and en
 - **Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Python 3.12)
 - **Database**: PostgreSQL (with SQLAlchemy 2.0 and Alembic migrations)
 - **Caching & Rate Limiting**: Redis + SlowAPI (limiting endpoint abuse)
+- **Object Storage**: AWS S3 / LocalStack (fully async via aiobotocore)
 - **Validation**: Pydantic v2
 - **Package Manager & Runner**: `uv` (fast dependency resolution)
 - **Password Hashing**: Argon2id (highly secure password verification)
@@ -34,6 +35,7 @@ backend/
     ├── models/                   # SQLAlchemy database schemas
     ├── repositories/             # Database transaction query layers
     ├── services/                 # Business logic implementation and transactions
+    │   └── storage/              # Storage providers (base storage, local filesystem, async S3)
     └── utils/                    # Data export helpers (Excel / PDF formatting)
 ```
 
@@ -43,14 +45,35 @@ backend/
    - Routers in `src/main.py` handle inputs and outputs.
    - Services in `src/services/` execute core business rules and transaction boundaries.
    - Repositories in `src/repositories/` query the database via SQLAlchemy sessions.
-2. **Refresh Token Rotation**:
+2. **Asynchronous S3 Storage integration**:
+   - Built on `aiobotocore` for completely non-blocking async file storage requests.
+   - Switchable via `STORAGE_PROVIDER` (either `local` or `s3`).
+   - Supports local simulation (LocalStack) and cloud environments (real AWS S3 buckets) through environment variables.
+3. **Refresh Token Rotation**:
    - Protects credentials by generating an HttpOnly refresh cookie.
    - Session tokens rotate on every usage. Reusing an old refresh token immediately invalidates the user's active session.
-3. **Structured JSON Logs with Correlation IDs**:
+4. **Structured JSON Logs with Correlation IDs**:
    - Request-scoped middleware checks or generates `X-Correlation-ID` values.
    - Correlated logs allow developers to trace request lifecycles across concurrent operations.
-4. **Rate Limiting Protection**:
+5. **Rate Limiting Protection**:
    - Integrates Redis for reliable state management and SlowAPI for request throttling.
+
+---
+
+## Environment Configuration
+
+Adjust backend configuration variables by editing `backend/.env` (or via docker-compose environment blocks). Key variables include:
+
+| Variable | Description | Default / Dev Value |
+|---|---|---|
+| `DATABASE_URL` | Async PostgreSQL connection string | `postgresql+asyncpg://postgres:postgrespassword@db:5432/todosphere` |
+| `REDIS_URL` | Redis endpoint | `redis://redis:6379/0` |
+| `STORAGE_PROVIDER` | Active file persistence driver (`local` or `s3`) | `local` |
+| `UPLOAD_DIR` | Filesystem destination for local storage | `/app/uploads` |
+| `S3_BUCKET_NAME` | Target S3 bucket for uploads | `todosphere-attachments` |
+| `S3_ACCESS_KEY` | AWS / LocalStack Access Key ID | `minio_dev_access_key` |
+| `S3_SECRET_KEY` | AWS / LocalStack Secret Access Key | `minio_dev_secret_key` |
+| `S3_ENDPOINT_URL` | Endpoint for LocalStack S3 simulation (blank for real AWS) | `http://localhost:4566` |
 
 ---
 
@@ -67,7 +90,7 @@ uv sync
 ```
 
 ### 2. Configure Environment Variables
-Copy `.env.example` from the project root into `backend/.env` and adjust the PostgreSQL/Redis settings as needed:
+Copy `.env.example` from the project root into `backend/.env` and adjust the settings:
 ```bash
 cp ../.env.example .env
 ```
@@ -85,7 +108,7 @@ uv run python -B scripts/seed.py
 ```
 
 ### 5. Start the API Server
-Start the development server using Granian or Uvicorn:
+Start the development server:
 ```bash
 uv run python -B -m uvicorn src.main:app --host 127.0.0.1 --port 8000 --reload
 ```
@@ -123,7 +146,7 @@ uv run pip-audit
 ```
 
 ### Pytest (Backend Test Suites)
-Make sure PostgreSQL and Redis are running locally or inside docker, then execute:
+Make sure PostgreSQL, Redis, and LocalStack are running (or run `docker compose -f docker-compose.test.yml up -d` to spin up the entire test suite dependencies), then execute:
 ```bash
 uv run python -B -m pytest tests/ -v
 ```

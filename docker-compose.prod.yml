@@ -52,8 +52,12 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-changeme_in_prod}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-changeme_in_prod}
       CORS_ORIGINS: '["http://localhost:8080"]'
-      STORAGE_PROVIDER: local
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
       UPLOAD_DIR: /app/uploads
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-todosphere-attachments}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
       PERFORMANCE_TEST: "true"
     volumes:
       - uploads_data:/app/uploads
