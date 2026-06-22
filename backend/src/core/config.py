@@ -6,7 +6,7 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    # Application Settings
+    # Application Settings (CI/CD Pipeline Validation Comment)
     APP_NAME: str = "TodoSphere API"
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
