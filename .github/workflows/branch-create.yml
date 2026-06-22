@@ -1,0 +1,87 @@
+name: Auto Branch on Issue
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  create-branch:
+    name: Create Feature Branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate branch name
+        id: branch
+        run: |
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          BRANCH_NAME="feature/issue-${ISSUE_NUMBER}"
+          echo "BRANCH_NAME=${BRANCH_NAME}" >> $GITHUB_ENV
+          echo "name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Check if branch already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTS=$(gh api repos/${{ github.repository }}/branches/${{ env.BRANCH_NAME }} \
+            --silent --jq '.name' 2>/dev/null || echo "")
+          if [ -n "$EXISTS" ]; then
+            echo "BRANCH_EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "BRANCH_EXISTS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Get development branch SHA
+        if: env.BRANCH_EXISTS == 'false'
+        id: dev_sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA=$(gh api repos/${{ github.repository }}/git/ref/heads/development \
+            --jq '.object.sha')
+          echo "DEV_SHA=${SHA}" >> $GITHUB_ENV
+
+      - name: Create branch from development
+        if: env.BRANCH_EXISTS == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/git/refs \
+            --method POST \
+            --field ref="refs/heads/${{ env.BRANCH_NAME }}" \
+            --field sha="${{ env.DEV_SHA }}"
+
+      - name: Post comment — branch created
+        if: env.BRANCH_EXISTS == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --body "**Branch created:** \`${{ env.BRANCH_NAME }}\`
+
+          Get started:
+          \`\`\`bash
+          git fetch origin
+          git checkout ${{ env.BRANCH_NAME }}
+          \`\`\`
+
+          When ready, open a PR from \`${{ env.BRANCH_NAME }}\` → \`development\`."
+
+      - name: Post comment — branch already exists
+        if: env.BRANCH_EXISTS == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --body "**Branch \`${{ env.BRANCH_NAME }}\` already exists.**
+
+          Check it out:
+          \`\`\`bash
+          git fetch origin
+          git checkout ${{ env.BRANCH_NAME }}
+          \`\`\`"

@@ -1,0 +1,389 @@
+name: PR Quality Gate
+
+on:
+  pull_request:
+    branches:
+      - development
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+jobs:
+  branch-check:
+    name: Branch Up-to-Date Check
+    runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check branch is up to date with development
+        run: |
+          git fetch origin development
+          if ! git merge-base --is-ancestor origin/development HEAD; then
+            echo "This branch is behind 'development'. Please rebase or merge development into your branch before opening a PR."
+            exit 1
+          fi
+          echo "Branch is up to date with development."
+
+  backend-checks:
+    name: Backend Checks
+    runs-on: ubuntu-latest
+    needs: [branch-check]
+    if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: 'backend/.python-version'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          uv sync --frozen
+
+      - name: Run Ruff Lint
+        run: |
+          cd backend
+          uv run ruff check src/ tests/
+
+      - name: Run Ruff Format
+        run: |
+          cd backend
+          uv run ruff format --check src/ tests/ scripts/
+
+      - name: Run MyPy
+        run: |
+          cd backend
+          uv run mypy -p src
+
+      - name: Run Bandit
+        run: |
+          cd backend
+          uv run bandit -c pyproject.toml -r src/
+
+      - name: Run pip-audit
+        run: |
+          cd backend
+          uv run pip-audit
+
+      - name: Send failure email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.NOTIFY_EMAIL_USER }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
+          subject: '[FAIL] PR #${{ github.event.pull_request.number }} — Backend Checks'
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
+          body: |
+            Backend checks failed for PR #${{ github.event.pull_request.number }}.
+            Author: ${{ github.actor }}
+            Title: ${{ github.event.pull_request.title }}
+            PR URL: ${{ github.event.pull_request.html_url }}
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  frontend-checks:
+    name: Frontend Checks
+    runs-on: ubuntu-latest
+    needs: [branch-check]
+    if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run ESLint
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Run Prettier check
+        run: |
+          cd frontend
+          npm run format:check
+
+      - name: Run TypeScript compiler
+        run: |
+          cd frontend
+          npx tsc -b
+
+      - name: Run npm audit
+        run: |
+          cd frontend
+          npm audit --audit-level=high
+
+      - name: Send failure email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.NOTIFY_EMAIL_USER }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
+          subject: '[FAIL] PR #${{ github.event.pull_request.number }} — Frontend Checks'
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
+          body: |
+            Frontend checks failed for PR #${{ github.event.pull_request.number }}.
+            Author: ${{ github.actor }}
+            Title: ${{ github.event.pull_request.title }}
+            PR URL: ${{ github.event.pull_request.html_url }}
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [backend-checks, frontend-checks]
+    if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog-github-action@v3.82.0
+        with:
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          extra_args: --only-verified
+
+      - name: Trivy FS Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: 1
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+
+      - name: Check trailing whitespace
+        run: |
+          git diff --check ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+
+      - name: Check merge conflict markers
+        run: |
+          files=$(git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          if [ -n "$files" ]; then
+            if echo "$files" | xargs grep -E "^(<<<<<<<|=======|>>>>>>>)" 2>/dev/null; then
+              echo "Error: Merge conflict markers found in changed files."
+              exit 1
+            fi
+          fi
+
+      - name: Check for large files
+        run: |
+          large_files=$(find . -type f -size +1M \
+            -not -path '*/.*' \
+            -not -path './node_modules/*' \
+            -not -path './backend/.venv/*' \
+            -not -path './backend/uploads/*' \
+            -not -path './frontend/playwright-report/*' \
+            -not -path './frontend/dist/*' \
+            -not -name 'uv.lock' \
+            -not -name 'package-lock.json')
+          if [ -n "$large_files" ]; then
+            echo "Error: Large files (>1MB) found in repository:"
+            echo "$large_files"
+            exit 1
+          fi
+
+      - name: Send failure email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.NOTIFY_EMAIL_USER }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
+          subject: '[FAIL] PR #${{ github.event.pull_request.number }} — Security Scan'
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
+          body: |
+            Security scan failed for PR #${{ github.event.pull_request.number }}.
+            Author: ${{ github.actor }}
+            Title: ${{ github.event.pull_request.title }}
+            PR URL: ${{ github.event.pull_request.html_url }}
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  build-scan-push:
+    name: Build, Scan and Push
+    runs-on: ubuntu-latest
+    needs: [backend-checks, frontend-checks, security-scan]
+    if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Downcase repository owner
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> $GITHUB_ENV
+        env:
+          OWNER: '${{ github.repository_owner }}'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Backend (Local Load for Scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: true
+          tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}
+          cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache
+          cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache,mode=max
+
+      - name: Trivy Scan Backend Image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}
+          format: 'table'
+          exit-code: 1
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'
+
+      - name: Push Backend Image
+        id: push_backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache
+
+      - name: Build Frontend (Local Load for Scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          load: true
+          tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}
+          cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache
+          cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache,mode=max
+
+      - name: Trivy Scan Frontend Image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}
+          format: 'table'
+          exit-code: 1
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'
+
+      - name: Push Frontend Image
+        id: push_frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache
+
+      - name: Create or Update PR Comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### TodoSphere Images Built Successfully!
+
+            The Docker images have been built and pushed to GitHub Container Registry (GHCR).
+
+            **Image Digests:**
+            - **Backend:** `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend@${{ steps.push_backend.outputs.digest }}`
+            - **Frontend:** `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend@${{ steps.push_frontend.outputs.digest }}`
+
+            **Tags:**
+            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}`
+            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}`
+            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}`
+            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}`
+
+            *Pushed at: ${{ github.run_started_at }}*
+
+      - name: Send success email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.NOTIFY_EMAIL_USER }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
+          subject: '[READY] PR #${{ github.event.pull_request.number }} — Ready for Review'
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
+          body: |
+            PR #${{ github.event.pull_request.number }} has passed all quality checks and is ready for review.
+
+            Author: ${{ github.actor }}
+            Title: ${{ github.event.pull_request.title }}
+            PR URL: ${{ github.event.pull_request.html_url }}
+
+            Backend Image: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}
+            Backend Digest: ${{ steps.push_backend.outputs.digest }}
+
+            Frontend Image: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}
+            Frontend Digest: ${{ steps.push_frontend.outputs.digest }}
+
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Send failure email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.NOTIFY_EMAIL_USER }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
+          subject: '[FAIL] PR #${{ github.event.pull_request.number }} — Build or Trivy Scan Failed'
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
+          body: |
+            Build, Scan, or Push job failed for PR #${{ github.event.pull_request.number }}.
+            Author: ${{ github.actor }}
+            Title: ${{ github.event.pull_request.title }}
+            PR URL: ${{ github.event.pull_request.html_url }}
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
