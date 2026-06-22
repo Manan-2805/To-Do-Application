@@ -51,7 +51,7 @@ jobs:
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -71,7 +71,7 @@ jobs:
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v8.2.0
@@ -136,7 +136,7 @@ jobs:
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -195,7 +195,7 @@ jobs:
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -272,7 +272,7 @@ jobs:
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Downcase repository owner
         run: |
