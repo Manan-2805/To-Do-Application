@@ -1,5 +1,4 @@
 services:
-
   test-db:
     image: postgres:16-alpine
     container_name: todosphere-test-db
@@ -75,7 +74,13 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')",
+        ]
       interval: 10s
       timeout: 5s
       retries: 12

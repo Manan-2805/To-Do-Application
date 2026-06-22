@@ -1,5 +1,4 @@
 services:
-
   localstack:
     image: localstack/localstack:3.4
     container_name: todosphere-infra-localstack
@@ -33,8 +32,6 @@ services:
       - prometheus_data:/prometheus
     networks:
       - todosphere-infra
-
-
 
 volumes:
   localstack_data:

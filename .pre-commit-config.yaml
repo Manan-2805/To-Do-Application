@@ -1,0 +1,27 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: Ruff Format
+        entry: uv run --project backend ruff format
+        language: system
+        types: [python]
+
+      - id: ruff-check
+        name: Ruff Check
+        entry: uv run --project backend ruff check --fix
+        language: system
+        types: [python]
+
+      - id: prettier
+        name: Prettier
+        entry: npx.cmd --prefix frontend prettier --write
+        language: system
+        types_or: [yaml, json, javascript, ts, tsx, css, html]
+
+      - id: eslint
+        name: ESLint
+        entry: npx.cmd --prefix frontend eslint --config frontend/eslint.config.js --fix
+        language: system
+        types_or: [javascript, tsx, ts, jsx]
+        files: ^frontend/

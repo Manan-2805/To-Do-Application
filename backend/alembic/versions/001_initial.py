@@ -129,7 +129,6 @@ def upgrade() -> None:
         sa.Column("entity_type", sa.String(length=50), nullable=False),
         sa.Column("entity_id", sa.String(length=100), nullable=True),
         sa.Column("action_metadata", sa.JSON(), nullable=True),
-
         sa.Column("ip_address", sa.String(length=45), nullable=True),
         sa.Column("user_agent", sa.String(length=500), nullable=True),
         sa.Column(

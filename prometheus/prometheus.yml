@@ -3,8 +3,7 @@ global:
   evaluation_interval: 5s
 
 scrape_configs:
-  - job_name: 'todosphere-backend'
-    metrics_path: '/metrics'
+  - job_name: "todosphere-backend"
+    metrics_path: "/metrics"
     static_configs:
-      - targets: ['backend:8000']
-
+      - targets: ["backend:8000"]

@@ -33,6 +33,7 @@ dev = [
     "locust>=2.29.0",
     "mypy>=1.10.0",
     "pip-audit>=2.7.0",
+    "pre-commit>=4.6.0",
     "pytest>=8.2.1",
     "pytest-asyncio>=0.23.7",
     "pytest-cov>=5.0.0",
