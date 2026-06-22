@@ -3,6 +3,8 @@ name: Heavy Testing
 on:
   pull_request_review:
     types: [submitted]
+  pull_request:
+    types: [labeled]
 
 concurrency:
   group: heavy-test-pr-${{ github.event.pull_request.number }}
@@ -11,7 +13,9 @@ concurrency:
 jobs:
   heavy-test:
     name: Run Heavy Tests
-    if: github.event.review.state == 'approved'
+    if: |
+      (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'run-heavy-tests')
     runs-on: [self-hosted, windows, local, kind]
     defaults:
       run:
