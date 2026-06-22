@@ -10,7 +10,7 @@ on:
       - 'backend/pyproject.toml'
       - 'backend/uv.lock'
       - 'backend/Dockerfile'
-      
+
       # Frontend
       - 'frontend/**/*.js'
       - 'frontend/**/*.jsx'
@@ -20,7 +20,7 @@ on:
       - 'frontend/**/*.json'
       - 'frontend/**/*.html'
       - 'frontend/Dockerfile'
-      
+
       # Infrastructure & Scripts
       - 'k8s/**/*.yml'
       - 'k8s/**/*.yaml'
@@ -28,7 +28,7 @@ on:
       - 'docker-compose*.yml'
       - 'Makefile'
       - 'scripts/**/*.sh'
-      
+
       # Explicitly Ignore (these are implicitly ignored, but added for clarity)
       - '!**/*.md'
       - '!**/*.txt'
