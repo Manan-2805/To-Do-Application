@@ -4,6 +4,36 @@ on:
   pull_request:
     branches:
       - development
+    paths:
+      # Backend
+      - 'backend/**/*.py'
+      - 'backend/pyproject.toml'
+      - 'backend/uv.lock'
+      - 'backend/Dockerfile'
+      
+      # Frontend
+      - 'frontend/**/*.js'
+      - 'frontend/**/*.jsx'
+      - 'frontend/**/*.ts'
+      - 'frontend/**/*.tsx'
+      - 'frontend/**/*.css'
+      - 'frontend/**/*.json'
+      - 'frontend/**/*.html'
+      - 'frontend/Dockerfile'
+      
+      # Infrastructure & Scripts
+      - 'k8s/**/*.yml'
+      - 'k8s/**/*.yaml'
+      - '.github/workflows/**/*.yml'
+      - 'docker-compose*.yml'
+      - 'Makefile'
+      - 'scripts/**/*.sh'
+      
+      # Explicitly Ignore (these are implicitly ignored, but added for clarity)
+      - '!**/*.md'
+      - '!**/*.txt'
+      - '!LICENSE'
+      - '!**/.gitignore'
 
 concurrency:
   group: pr-${{ github.event.pull_request.number }}
@@ -170,14 +200,14 @@ jobs:
           fetch-depth: 0
 
       - name: TruffleHog OSS
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@v3.95.2
         with:
           base: ${{ github.event.pull_request.base.sha }}
           head: ${{ github.event.pull_request.head.sha }}
           extra_args: --only-verified
 
       - name: Trivy FS Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -272,7 +302,7 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache,mode=max
 
       - name: Trivy Scan Backend Image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}
           format: 'table'
@@ -304,7 +334,7 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache,mode=max
 
       - name: Trivy Scan Frontend Image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}
           format: 'table'
