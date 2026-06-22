@@ -1,16 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: todosphere-backend
+  name: todosphere-backend-green
   namespace: todosphere
   labels:
     app: todosphere-backend
+    slot: green
     app.kubernetes.io/part-of: todosphere
 spec:
   replicas: 2
   selector:
     matchLabels:
       app: todosphere-backend
+      slot: green
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -20,6 +22,7 @@ spec:
     metadata:
       labels:
         app: todosphere-backend
+        slot: green
     spec:
       terminationGracePeriodSeconds: 30
       containers:

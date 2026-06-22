@@ -1,0 +1,207 @@
+name: Heavy Testing
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+concurrency:
+  group: heavy-test-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  heavy-test:
+    name: Run Heavy Tests
+    if: github.event.review.state == 'approved'
+    runs-on: [self-hosted, windows, local, kind]
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: write
+      packages: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract commit SHA
+        run: |
+          echo "SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+
+      - name: Downcase repository owner
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> $GITHUB_ENV
+        env:
+          OWNER: "${{ github.repository_owner }}"
+
+      - name: Log in to GHCR
+        run: |
+          docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and Tag Images
+        run: |
+          docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
+          docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
+
+          # Extract digests locally
+          BACKEND_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }})
+          FRONTEND_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }})
+          echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
+          echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
+
+      - name: Start Temporary Test Stack
+        run: |
+          export BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
+          export FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
+          docker compose -f docker-compose.test.yml up -d
+
+          # Wait for services to be ready
+          echo "Waiting for test stack endpoints to be ready..."
+          timeout=120
+          elapsed=0
+          interval=5
+          while [ $elapsed -lt $timeout ]; do
+            if curl -sf http://127.0.0.1:8000/health/ready >/dev/null 2>&1 && curl -sf http://127.0.0.1:8080/ >/dev/null 2>&1; then
+              echo "Services are ready!"
+              break
+            fi
+            echo "Services not ready yet. Waiting $interval seconds... ($elapsed/$timeout)"
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
+          if [ $elapsed -ge $timeout ]; then
+            echo "Timeout waiting for test stack to become ready."
+            docker compose -f docker-compose.test.yml logs
+            exit 1
+          fi
+
+      - name: Run Database Migrations
+        run: |
+          docker compose -f docker-compose.test.yml exec -T test-backend alembic upgrade head
+
+      - name: Seed Database
+        run: |
+          docker compose -f docker-compose.test.yml exec -T test-backend python -B scripts/seed.py
+
+      - name: Run pytest (Backend Unit & Integration)
+        run: |
+          export DATABASE_URL="postgresql+asyncpg://postgres:testpassword@127.0.0.1:5433/todosphere"
+          export REDIS_URL="redis://127.0.0.1:6380/0"
+          cd backend
+          uv run python -B -m pytest tests/ -v --tb=short --cov=src --cov-report=html:../reports/backend-coverage --junitxml=../reports/backend-report.xml
+
+      - name: Run Vitest (Frontend Unit)
+        run: |
+          cd frontend
+          npm run test:coverage -- --reporter=default --reporter=junit --outputFile=../reports/frontend-report.xml
+
+      - name: Run Playwright E2E Tests
+        run: |
+          cd frontend
+          npx playwright install chromium
+          PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test --reporter=html
+
+      - name: Run Lighthouse Audit
+        run: |
+          npx lighthouse http://localhost:8080 --output json --output html --output-path ./lighthouse-results --chrome-flags="--headless --no-sandbox --disable-gpu"
+          backend/.venv/Scripts/python -B -c "
+          import json, sys
+          with open('./lighthouse-results.report.json') as f:
+              data = json.load(f)
+          c = data['categories']
+          perf, acc, bp, seo = c['performance']['score']*100, c['accessibility']['score']*100, c['best-practices']['score']*100, c['seo']['score']*100
+          print(f'Performance: {perf}, Accessibility: {acc}, Best Practices: {bp}, SEO: {seo}')
+          failed = []
+          if perf < 75: failed.append(f'Performance {perf} < 75')
+          if acc < 80: failed.append(f'Accessibility {acc} < 80')
+          if bp < 80: failed.append(f'Best Practices {bp} < 80')
+          if seo < 75: failed.append(f'SEO {seo} < 75')
+          if failed:
+              print('Lighthouse check failed:', ', '.join(failed), file=sys.stderr)
+              sys.exit(1)
+          "
+
+      - name: Run Locust Smoke Load Test
+        run: |
+          cd backend
+          uv run python -m locust -f tests/performance/locustfile.py --headless -u 20 -r 5 --run-time 60s --host http://localhost:8000 --csv=locust_results --only-summary
+          cd ..
+          backend/.venv/Scripts/python -B -c "
+          import csv, sys
+          with open('backend/locust_results_stats.csv') as f:
+              reader = csv.DictReader(f)
+              rows = list(reader)
+          agg = next((r for r in rows if r.get('Name') == 'Aggregated'), None)
+          if not agg:
+              print('Error: Aggregated row not found', file=sys.stderr)
+              sys.exit(1)
+          headers = list(agg.keys())
+          p95_key = next((h for h in headers if '95%' in h), None)
+          if not p95_key:
+              print('Error: 95% column not found', file=sys.stderr)
+              sys.exit(1)
+          p95 = float(agg[p95_key])
+          req = int(agg['Request Count'])
+          fail = int(agg['Failure Count'])
+          err_rate = fail / req if req > 0 else 0.0
+          print(f'Locust p95: {p95}ms, Error Rate: {err_rate*100:.2f}%')
+          failed = []
+          if p95 >= 500: failed.append(f'p95 response time {p95}ms >= 500ms')
+          if err_rate >= 0.01: failed.append(f'Error rate {err_rate*100:.2f}% >= 1%')
+          if failed:
+              print('Locust check failed:', ', '.join(failed), file=sys.stderr)
+              sys.exit(1)
+          "
+
+      - name: Tear Down Temporary Test Stack
+        if: always()
+        run: |
+          docker compose -f docker-compose.test.yml down -v --remove-orphans
+
+      - name: Send Test Failure Email
+        if: failure()
+        uses: dawidd6/action-send-mail@v17
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.NOTIFY_EMAIL_USER }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
+          subject: "[FAIL] Heavy Tests Failed for PR #${{ github.event.pull_request.number }}"
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
+          body: |
+            Heavy tests failed for PR #${{ github.event.pull_request.number }} (Commit: ${{ env.SHA }}).
+            Author: ${{ github.actor }}
+            PR: ${{ github.event.pull_request.html_url }}
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Upload Playwright Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: frontend/playwright-report/
+          if-no-files-found: ignore
+
+      - name: Upload Lighthouse Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report-${{ github.run_id }}
+          path: ./lighthouse-results.report.*
+          if-no-files-found: ignore
+
+      - name: Upload Locust Stats
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: locust-stats-${{ github.run_id }}
+          path: backend/locust_results_stats.csv
+          if-no-files-found: ignore
+
+      - name: Disk Cleanup
+        if: always()
+        run: |
+          docker system prune -f --filter "until=24h"

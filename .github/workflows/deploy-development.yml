@@ -1,0 +1,233 @@
+name: Deploy to Development
+
+on:
+  push:
+    branches:
+      - development
+
+concurrency:
+  group: deploy-development
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to KinD
+    runs-on: [self-hosted, windows, local, kind]
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: write
+      packages: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract commit SHA
+        run: |
+          echo "SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Downcase repository owner
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> $GITHUB_ENV
+        env:
+          OWNER: "${{ github.repository_owner }}"
+
+      - name: Log in to GHCR
+        run: |
+          docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get PR Information
+        id: pr_info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_INFO=$(gh pr list --commit ${{ github.sha }} --state merged --json number,headRefOid --jq '.[0]')
+          PR_NUMBER=$(echo "$PR_INFO" | jq -r '.number')
+          PR_HEAD_SHA=$(echo "$PR_INFO" | jq -r '.headRefOid')
+          if [ -z "$PR_HEAD_SHA" ] || [ "$PR_HEAD_SHA" = "null" ]; then
+            echo "No merged PR found. Falling back to commit SHA."
+            PR_HEAD_SHA="${{ github.sha }}"
+            PR_NUMBER="direct"
+          fi
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          echo "PR_HEAD_SHA=$PR_HEAD_SHA" >> $GITHUB_ENV
+
+      - name: Pull and Tag Images
+        run: |
+          if [ "${{ env.PR_NUMBER }}" = "direct" ]; then
+            docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.PR_HEAD_SHA }}
+            docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.PR_HEAD_SHA }}
+            docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.PR_HEAD_SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
+            docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.PR_HEAD_SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
+          else
+            docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}
+            docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}
+            docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
+            docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
+          fi
+
+          # Extract digests locally
+          BACKEND_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }})
+          FRONTEND_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }})
+          echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
+          echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
+
+      - name: Apply Base Kubernetes Manifests
+        run: |
+          # Apply namespace first
+          kubectl apply -f k8s/namespace.yml
+
+          # Create Secrets
+          DATABASE_URL="postgresql+asyncpg://postgres:${{ secrets.DB_PASSWORD }}@postgres.todosphere.svc.cluster.local:5432/todosphere"
+          kubectl create secret generic todosphere-secrets \
+            --namespace=todosphere \
+            --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            --from-literal=DATABASE_URL="$DATABASE_URL" \
+            --from-literal=JWT_ACCESS_SECRET="${{ secrets.JWT_ACCESS_SECRET }}" \
+            --from-literal=JWT_REFRESH_SECRET="${{ secrets.JWT_REFRESH_SECRET }}" \
+            --from-literal=S3_ACCESS_KEY="test" \
+            --from-literal=S3_SECRET_KEY="test" \
+            --from-literal=CORS_ORIGINS="${{ secrets.CORS_ORIGINS }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+            
+          kubectl apply -f k8s/configmap.yml
+          kubectl apply -f k8s/postgres/
+          kubectl rollout status statefulset/postgres -n todosphere --timeout=120s
+          kubectl apply -f k8s/redis/
+          kubectl rollout status deployment/redis -n todosphere --timeout=60s
+          kubectl apply -f k8s/localstack/
+          kubectl rollout status deployment/localstack -n todosphere --timeout=90s
+
+          # Apply the blue/green deployments and services
+          kubectl apply -f k8s/backend/
+          kubectl apply -f k8s/frontend/
+          kubectl apply -f k8s/ingress/ingress.yml
+
+      - name: "Blue-Green Deploy - Step 1: Detect Active and Standby Slots"
+        run: |
+          ACTIVE=$(kubectl get service todosphere-backend -n todosphere -o jsonpath='{.spec.selector.slot}')
+          if [ -z "$ACTIVE" ] || [ "$ACTIVE" = "null" ]; then
+            ACTIVE="blue"
+          fi
+          if [ "$ACTIVE" = "blue" ]; then
+            STANDBY="green"
+          else
+            STANDBY="blue"
+          fi
+          echo "ACTIVE=$ACTIVE" >> $GITHUB_ENV
+          echo "STANDBY=$STANDBY" >> $GITHUB_ENV
+          echo "Active slot is: $ACTIVE, Standby slot is: $STANDBY"
+
+      - name: "Blue-Green Deploy - Step 2: Update Standby Image & Wait"
+        run: |
+          echo "Updating deployment/todosphere-backend-${{ env.STANDBY }} to ${{ env.BACKEND_DIGEST }}..."
+          kubectl set image deployment/todosphere-backend-${{ env.STANDBY }} backend=${{ env.BACKEND_DIGEST }} -n todosphere
+
+          echo "Updating deployment/todosphere-frontend-${{ env.STANDBY }} to ${{ env.FRONTEND_DIGEST }}..."
+          kubectl set image deployment/todosphere-frontend-${{ env.STANDBY }} frontend=${{ env.FRONTEND_DIGEST }} -n todosphere
+
+          echo "Waiting for backend standby deployment rollout..."
+          kubectl rollout status deployment/todosphere-backend-${{ env.STANDBY }} -n todosphere --timeout=180s
+
+          echo "Waiting for frontend standby deployment rollout..."
+          kubectl rollout status deployment/todosphere-frontend-${{ env.STANDBY }} -n todosphere --timeout=180s
+
+      - name: "Blue-Green Deploy - Step 3: Run Database Migrations on Standby Pod"
+        run: |
+          # Retrieve name of a pod running in the standby deployment
+          STANDBY_POD=$(kubectl get pods -n todosphere -l app=todosphere-backend,slot=${{ env.STANDBY }} -o jsonpath='{.items[0].metadata.name}')
+          echo "Running database migrations in standby pod: $STANDBY_POD..."
+          kubectl exec -n todosphere $STANDBY_POD -- alembic upgrade head
+
+      - name: "Blue-Green Deploy - Step 4: Switch Traffic to Standby Slot"
+        run: |
+          echo "Switching backend service selector to ${{ env.STANDBY }}..."
+          kubectl patch service todosphere-backend -n todosphere -p "{\"spec\":{\"selector\":{\"app\":\"todosphere-backend\",\"slot\":\"${{ env.STANDBY }}\"}}}"
+
+          echo "Switching frontend service selector to ${{ env.STANDBY }}..."
+          kubectl patch service todosphere-frontend -n todosphere -p "{\"spec\":{\"selector\":{\"app\":\"todosphere-frontend\",\"slot\":\"${{ env.STANDBY }}\"}}}"
+
+          echo "DEPLOY_STARTED=true" >> $GITHUB_ENV
+
+      - name: "Blue-Green Deploy - Step 5: Post-Deploy Ingress Health Check"
+        run: |
+          echo "Verifying live site endpoints through Ingress..."
+          # Give Ingress controller a few seconds to update routing
+          sleep 5
+          curl --retry 6 --retry-delay 10 --retry-connrefused -sf http://localhost:8080/
+          curl --retry 6 --retry-delay 10 --retry-connrefused -sf http://localhost:8080/api/v1/health/ready
+
+      - name: "Blue-Green Deploy - Step 6: Rollback on Post-Deploy Failure"
+        if: failure() && env.DEPLOY_STARTED == 'true'
+        run: |
+          echo "Post-deploy health check failed! Rolling back service selectors to ${{ env.ACTIVE }} slot..."
+          kubectl patch service todosphere-backend -n todosphere -p "{\"spec\":{\"selector\":{\"app\":\"todosphere-backend\",\"slot\":\"${{ env.ACTIVE }}\"}}}"
+          kubectl patch service todosphere-frontend -n todosphere -p "{\"spec\":{\"selector\":{\"app\":\"todosphere-frontend\",\"slot\":\"${{ env.ACTIVE }}\"}}}"
+
+      - name: Send Rollback Email
+        if: failure() && env.DEPLOY_STARTED == 'true'
+        uses: dawidd6/action-send-mail@v17
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.NOTIFY_EMAIL_USER }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
+          subject: "[ROLLBACK] Deploy — Blue-Green Rollback Triggered for ${{ github.sha }}"
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
+          body: |
+            A post-deployment check failed for commit ${{ github.sha }} on development branch.
+            The service selectors in the KinD cluster have been instantly rolled back to the old active slot (${{ env.ACTIVE }}).
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Send Deploy Failure Email
+        if: failure() && env.DEPLOY_STARTED != 'true'
+        uses: dawidd6/action-send-mail@v17
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.NOTIFY_EMAIL_USER }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
+          subject: "[FAIL] Deploy — Rollout Failed for ${{ github.sha }}"
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
+          body: |
+            Deploy rollout failed for commit ${{ github.sha }}.
+            No traffic was switched, and the cluster remains routed to ${{ env.ACTIVE }} slot.
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Update Latest Tag in GHCR
+        run: |
+          docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:latest
+          docker push ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:latest
+          docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:latest
+          docker push ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:latest
+
+      - name: Send Success Email
+        uses: dawidd6/action-send-mail@v17
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.NOTIFY_EMAIL_USER }}
+          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
+          subject: "[SUCCESS] Deploy — Blue-Green Rollout Completed"
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
+          body: |
+            Commit ${{ github.sha }} has been successfully deployed using Blue-Green deployment to development KinD cluster!
+            - Active slot: ${{ env.STANDBY }}
+            - Standby slot: ${{ env.ACTIVE }}
+            - Backend Image Digest: ${{ env.BACKEND_DIGEST }}
+            - Frontend Image Digest: ${{ env.FRONTEND_DIGEST }}
+
+            Deployed at: ${{ github.run_started_at }}
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Disk Cleanup
+        if: always()
+        run: |
+          docker system prune -f --filter "until=24h"
