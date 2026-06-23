@@ -36,7 +36,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 USER appuser
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=2)" || exit 1
 
 EXPOSE 8000
 

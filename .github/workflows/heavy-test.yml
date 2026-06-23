@@ -67,7 +67,7 @@ jobs:
           elapsed=0
           interval=5
           while [ $elapsed -lt $timeout ]; do
-            if curl -sf http://127.0.0.1:8000/health/ready >/dev/null 2>&1 && curl -sf http://127.0.0.1:8080/ >/dev/null 2>&1; then
+            if curl -sf http://127.0.0.1:8000/health/ready >/dev/null 2>&1 && curl -sf http://127.0.0.1:8081/ >/dev/null 2>&1; then
               echo "Services are ready!"
               break
             fi
@@ -80,6 +80,13 @@ jobs:
             docker compose -f docker-compose.test.yml logs
             exit 1
           fi
+
+      - name: Dump Test Stack Logs on Failure
+        if: failure()
+        run: |
+          export BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
+          export FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
+          docker compose -f docker-compose.test.yml logs
 
       - name: Run Database Migrations
         run: |
@@ -105,11 +112,11 @@ jobs:
         run: |
           cd frontend
           npx playwright install chromium
-          PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test --reporter=html
+          PLAYWRIGHT_BASE_URL=http://localhost:8081 npx playwright test --reporter=html
 
       - name: Run Lighthouse Audit
         run: |
-          npx lighthouse http://localhost:8080 --output json --output html --output-path ./lighthouse-results --chrome-flags="--headless --no-sandbox --disable-gpu"
+          npx lighthouse http://localhost:8081 --output json --output html --output-path ./lighthouse-results --chrome-flags="--headless --no-sandbox --disable-gpu"
           backend/.venv/Scripts/python -B -c "
           import json, sys
           with open('./lighthouse-results.report.json') as f:
@@ -162,6 +169,8 @@ jobs:
       - name: Tear Down Temporary Test Stack
         if: always()
         run: |
+          export BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
+          export FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
           docker compose -f docker-compose.test.yml down -v --remove-orphans
 
       - name: Send Test Failure Email
