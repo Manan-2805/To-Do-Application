@@ -131,7 +131,7 @@ jobs:
           kubectl patch serviceaccount default -n todosphere \
             -p '{"imagePullSecrets": [{"name": "ghcr-pull-secret"}]}'
 
-          # Create Secrets
+          # Create Secrets (CORS_ORIGINS is in ConfigMap, not here)
           DB_PASS="${{ secrets.DB_PASSWORD }}"
           if [ -z "$DB_PASS" ]; then DB_PASS="testpassword"; fi
 
@@ -143,9 +143,6 @@ jobs:
           JWT_REF="${{ secrets.JWT_REFRESH_SECRET }}"
           if [ -z "$JWT_REF" ]; then JWT_REF="ci-test-secret-refresh-key-todosphere"; fi
 
-          CORS_ORGS='${{ secrets.CORS_ORIGINS }}'
-          if [ -z "$CORS_ORGS" ]; then CORS_ORGS='["http://localhost:8080", "http://localhost:8081"]'; fi
-
           kubectl create secret generic todosphere-secrets \
             --namespace=todosphere \
             --from-literal=DB_PASSWORD="$DB_PASS" \
@@ -154,7 +151,6 @@ jobs:
             --from-literal=JWT_REFRESH_SECRET="$JWT_REF" \
             --from-literal=S3_ACCESS_KEY="test" \
             --from-literal=S3_SECRET_KEY="test" \
-            --from-literal=CORS_ORIGINS="$CORS_ORGS" \
             --dry-run=client -o yaml | kubectl apply -f -
 
           kubectl apply -f k8s/configmap.yml
