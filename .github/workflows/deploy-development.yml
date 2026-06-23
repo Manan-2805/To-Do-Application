@@ -18,7 +18,7 @@ jobs:
         shell: bash
     permissions:
       contents: write
-      packages: read
+      packages: write
       pull-requests: write
     steps:
       - name: Checkout repository
@@ -59,20 +59,58 @@ jobs:
       - name: Pull and Tag Images
         run: |
           if [ "${{ env.PR_NUMBER }}" = "direct" ]; then
-            docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.PR_HEAD_SHA }}
-            docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.PR_HEAD_SHA }}
-            docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.PR_HEAD_SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
-            docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.PR_HEAD_SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
+            BACKEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.PR_HEAD_SHA }}"
+            FRONTEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.PR_HEAD_SHA }}"
+            
+            # Backend
+            if ! docker pull $BACKEND_TARGET_TAG; then
+              echo "Backend image not found in GHCR. Building and pushing..."
+              docker build -t $BACKEND_TARGET_TAG ./backend
+              docker push $BACKEND_TARGET_TAG
+            fi
+            
+            # Frontend
+            if ! docker pull $FRONTEND_TARGET_TAG; then
+              echo "Frontend image not found in GHCR. Building and pushing..."
+              docker build -t $FRONTEND_TARGET_TAG ./frontend
+              docker push $FRONTEND_TARGET_TAG
+            fi
+            
+            docker tag $BACKEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
+            docker tag $FRONTEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
           else
-            docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}
-            docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}
-            docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
-            docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
+            BACKEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}"
+            FRONTEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}"
+            
+            # Backend
+            if ! docker pull $BACKEND_TARGET_TAG; then
+              echo "Backend PR image not found in GHCR. Building and pushing..."
+              docker build -t $BACKEND_TARGET_TAG ./backend
+              docker push $BACKEND_TARGET_TAG
+            fi
+            
+            # Frontend
+            if ! docker pull $FRONTEND_TARGET_TAG; then
+              echo "Frontend PR image not found in GHCR. Building and pushing..."
+              docker build -t $FRONTEND_TARGET_TAG ./frontend
+              docker push $FRONTEND_TARGET_TAG
+            fi
+            
+            docker tag $BACKEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
+            docker tag $FRONTEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
           fi
 
           # Extract digests locally
-          BACKEND_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }})
-          FRONTEND_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }})
+          BACKEND_DIGEST=$(docker inspect --format='{{range .RepoDigests}}{{.}}{{end}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }} 2>/dev/null || true)
+          if [ -z "$BACKEND_DIGEST" ]; then
+            BACKEND_DIGEST=$(docker inspect --format='{{.Id}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }})
+          fi
+
+          FRONTEND_DIGEST=$(docker inspect --format='{{range .RepoDigests}}{{.}}{{end}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }} 2>/dev/null || true)
+          if [ -z "$FRONTEND_DIGEST" ]; then
+            FRONTEND_DIGEST=$(docker inspect --format='{{.Id}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }})
+          fi
+
           echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
           echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
 

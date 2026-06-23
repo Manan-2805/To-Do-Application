@@ -69,7 +69,7 @@ services:
       S3_ACCESS_KEY: test
       S3_SECRET_KEY: test
       S3_ENDPOINT_URL: http://test-localstack:4566
-      PERFORMANCE_TEST: "false"
+      PERFORMANCE_TEST: "true"
       PYTHONPATH: /app
     ports:
       - "8000:8000"
