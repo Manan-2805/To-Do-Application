@@ -132,6 +132,7 @@ jobs:
       - name: Run Lighthouse Audit
         run: |
           cd frontend
+          export CHROME_PATH=$(find /c/Users/manan/AppData/Local/ms-playwright -name "chrome.exe" | head -n 1)
           npx lighthouse http://127.0.0.1:8081 --output json --output html --output-path ../lighthouse-results --chrome-flags="--headless --no-sandbox --disable-gpu --disable-dev-shm-usage"
           cd ..
           backend/.venv/Scripts/python -B -c "
