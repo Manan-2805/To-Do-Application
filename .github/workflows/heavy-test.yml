@@ -127,12 +127,12 @@ jobs:
         run: |
           cd frontend
           npx playwright install chromium
-          PLAYWRIGHT_BASE_URL=http://localhost:8081 npx playwright test --reporter=html
+          PLAYWRIGHT_BASE_URL=http://127.0.0.1:8081 npx playwright test --reporter=html
 
       - name: Run Lighthouse Audit
         run: |
           cd frontend
-          npx lighthouse http://localhost:8081 --output json --output html --output-path ../lighthouse-results --chrome-flags="--headless --no-sandbox --disable-gpu"
+          npx lighthouse http://127.0.0.1:8081 --output json --output html --output-path ../lighthouse-results --chrome-flags="--headless --no-sandbox --disable-gpu --disable-dev-shm-usage"
           cd ..
           backend/.venv/Scripts/python -B -c "
           import json, sys
@@ -154,7 +154,7 @@ jobs:
       - name: Run Locust Smoke Load Test
         run: |
           cd backend
-          uv run python -m locust -f tests/performance/locustfile.py --headless -u 20 -r 5 --run-time 60s --host http://localhost:8000 --csv=locust_results --only-summary
+          uv run python -m locust -f tests/performance/locustfile.py --headless -u 20 -r 5 --run-time 60s --host http://127.0.0.1:8000 --csv=locust_results --only-summary
           cd ..
           backend/.venv/Scripts/python -B -c "
           import csv, sys
