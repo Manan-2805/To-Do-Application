@@ -120,18 +120,31 @@ jobs:
           kubectl apply -f k8s/namespace.yml
 
           # Create Secrets
-          DATABASE_URL="postgresql+asyncpg://postgres:${{ secrets.DB_PASSWORD }}@postgres.todosphere.svc.cluster.local:5432/todosphere"
+          DB_PASS="${{ secrets.DB_PASSWORD }}"
+          if [ -z "$DB_PASS" ]; then DB_PASS="testpassword"; fi
+
+          DATABASE_URL="postgresql+asyncpg://postgres:$DB_PASS@postgres.todosphere.svc.cluster.local:5432/todosphere"
+
+          JWT_ACC="${{ secrets.JWT_ACCESS_SECRET }}"
+          if [ -z "$JWT_ACC" ]; then JWT_ACC="ci-test-secret-access-key-todosphere"; fi
+
+          JWT_REF="${{ secrets.JWT_REFRESH_SECRET }}"
+          if [ -z "$JWT_REF" ]; then JWT_REF="ci-test-secret-refresh-key-todosphere"; fi
+
+          CORS_ORGS='${{ secrets.CORS_ORIGINS }}'
+          if [ -z "$CORS_ORGS" ]; then CORS_ORGS='["http://localhost:8080", "http://localhost:8081"]'; fi
+
           kubectl create secret generic todosphere-secrets \
             --namespace=todosphere \
-            --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            --from-literal=DB_PASSWORD="$DB_PASS" \
             --from-literal=DATABASE_URL="$DATABASE_URL" \
-            --from-literal=JWT_ACCESS_SECRET="${{ secrets.JWT_ACCESS_SECRET }}" \
-            --from-literal=JWT_REFRESH_SECRET="${{ secrets.JWT_REFRESH_SECRET }}" \
+            --from-literal=JWT_ACCESS_SECRET="$JWT_ACC" \
+            --from-literal=JWT_REFRESH_SECRET="$JWT_REF" \
             --from-literal=S3_ACCESS_KEY="test" \
             --from-literal=S3_SECRET_KEY="test" \
-            --from-literal=CORS_ORIGINS="${{ secrets.CORS_ORIGINS }}" \
+            --from-literal=CORS_ORIGINS="$CORS_ORGS" \
             --dry-run=client -o yaml | kubectl apply -f -
-            
+
           kubectl apply -f k8s/configmap.yml
           kubectl apply -f k8s/postgres/
           kubectl rollout status statefulset/postgres -n todosphere --timeout=120s
