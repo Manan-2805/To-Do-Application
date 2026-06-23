@@ -61,41 +61,41 @@ jobs:
           if [ "${{ env.PR_NUMBER }}" = "direct" ]; then
             BACKEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.PR_HEAD_SHA }}"
             FRONTEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.PR_HEAD_SHA }}"
-            
+
             # Backend
             if ! docker pull $BACKEND_TARGET_TAG; then
               echo "Backend image not found in GHCR. Building and pushing..."
               docker build -t $BACKEND_TARGET_TAG ./backend
               docker push $BACKEND_TARGET_TAG
             fi
-            
+
             # Frontend
             if ! docker pull $FRONTEND_TARGET_TAG; then
               echo "Frontend image not found in GHCR. Building and pushing..."
               docker build -t $FRONTEND_TARGET_TAG ./frontend
               docker push $FRONTEND_TARGET_TAG
             fi
-            
+
             docker tag $BACKEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
             docker tag $FRONTEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
           else
             BACKEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}"
             FRONTEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}"
-            
+
             # Backend
             if ! docker pull $BACKEND_TARGET_TAG; then
               echo "Backend PR image not found in GHCR. Building and pushing..."
               docker build -t $BACKEND_TARGET_TAG ./backend
               docker push $BACKEND_TARGET_TAG
             fi
-            
+
             # Frontend
             if ! docker pull $FRONTEND_TARGET_TAG; then
               echo "Frontend PR image not found in GHCR. Building and pushing..."
               docker build -t $FRONTEND_TARGET_TAG ./frontend
               docker push $FRONTEND_TARGET_TAG
             fi
-            
+
             docker tag $BACKEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
             docker tag $FRONTEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
           fi
