@@ -119,6 +119,18 @@ jobs:
           # Apply namespace first
           kubectl apply -f k8s/namespace.yml
 
+          # Create GHCR image pull secret so KinD cluster can pull private images
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --namespace=todosphere \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Patch default ServiceAccount to use the pull secret (applies to all pods)
+          kubectl patch serviceaccount default -n todosphere \
+            -p '{"imagePullSecrets": [{"name": "ghcr-pull-secret"}]}'
+
           # Create Secrets
           DB_PASS="${{ secrets.DB_PASSWORD }}"
           if [ -z "$DB_PASS" ]; then DB_PASS="testpassword"; fi
