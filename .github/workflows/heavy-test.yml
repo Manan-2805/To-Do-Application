@@ -55,13 +55,15 @@ jobs:
           echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
           echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
 
+          # Expose image tags globally for all docker compose steps in the runner environment
+          echo "BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}" >> $GITHUB_ENV
+
       - name: Start Temporary Test Stack
         run: |
           # Ensure LF line endings on the init script (prevent CRLF windows host issues)
           sed -i 's/\r$//' scripts/localstack-init.sh
 
-          export BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
-          export FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
           docker compose -f docker-compose.test.yml up -d
 
           # Wait for services to be ready
@@ -87,8 +89,6 @@ jobs:
       - name: Dump Test Stack Logs on Failure
         if: failure()
         run: |
-          export BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
-          export FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
           docker compose -f docker-compose.test.yml logs
 
       - name: Run Database Migrations
@@ -172,8 +172,6 @@ jobs:
       - name: Tear Down Temporary Test Stack
         if: always()
         run: |
-          export BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
-          export FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
           docker compose -f docker-compose.test.yml down -v --remove-orphans
 
       - name: Send Test Failure Email
