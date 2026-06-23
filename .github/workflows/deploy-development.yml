@@ -114,6 +114,24 @@ jobs:
           echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
           echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
 
+      - name: Load Images into KinD Cluster
+        run: |
+          # Tag images as :latest so the initial manifest apply (which references :latest) works
+          docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }} \
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:latest
+          docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }} \
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:latest
+
+          # Load all images directly into KinD so the cluster never needs to pull from GHCR
+          kind load docker-image \
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:latest \
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }} \
+            --name todosphere
+          kind load docker-image \
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:latest \
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }} \
+            --name todosphere
+
       - name: Apply Base Kubernetes Manifests
         run: |
           # Apply namespace first

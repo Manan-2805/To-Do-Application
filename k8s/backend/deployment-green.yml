@@ -28,7 +28,7 @@ spec:
       containers:
         - name: backend
           image: ghcr.io/manan-2805/to-do-application/backend:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
               name: http

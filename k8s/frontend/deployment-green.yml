@@ -28,7 +28,7 @@ spec:
       containers:
         - name: frontend
           image: ghcr.io/manan-2805/to-do-application/frontend:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
