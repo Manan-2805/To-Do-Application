@@ -17,5 +17,6 @@ data:
   S3_ENDPOINT_URL: "http://localstack.todosphere.svc.cluster.local:4566"
   AWS_DEFAULT_REGION: "us-east-1"
   UPLOAD_DIR: "/app/uploads"
-  PERFORMANCE_TEST: "false"
+  PERFORMANCE_TEST: "true"
   DEBUG: "false"
+  CORS_ORIGINS: '["http://localhost:8080", "http://localhost:8081"]'
