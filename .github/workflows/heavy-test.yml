@@ -57,6 +57,9 @@ jobs:
 
       - name: Start Temporary Test Stack
         run: |
+          # Ensure LF line endings on the init script (prevent CRLF windows host issues)
+          sed -i 's/\r$//' scripts/localstack-init.sh
+
           export BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
           export FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}
           docker compose -f docker-compose.test.yml up -d

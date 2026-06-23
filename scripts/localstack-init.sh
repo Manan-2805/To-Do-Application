@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Enforce LF endings in git checkout
 set -euo pipefail
 
 BUCKET_NAME="todosphere-attachments"
