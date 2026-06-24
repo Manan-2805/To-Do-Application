@@ -27,6 +27,8 @@ from src.services.scheduler import run_scheduler
 configure_logging()
 logger = logging.getLogger("todosphere.main")
 
+# Main entry point for the FastAPI application.
+
 
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
