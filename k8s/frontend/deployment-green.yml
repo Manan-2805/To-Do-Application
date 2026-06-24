@@ -8,7 +8,7 @@ metadata:
     slot: green
     app.kubernetes.io/part-of: todosphere
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: todosphere-frontend
