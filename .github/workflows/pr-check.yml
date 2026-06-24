@@ -297,6 +297,7 @@ jobs:
           file: ./backend/Dockerfile
           push: false
           load: true
+          provenance: false
           tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
           cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache
           cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache,mode=max
@@ -317,6 +318,7 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
+          provenance: false
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
           cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache
@@ -328,6 +330,7 @@ jobs:
           file: ./frontend/Dockerfile
           push: false
           load: true
+          provenance: false
           tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
           cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache
           cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache,mode=max
@@ -348,6 +351,7 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
+          provenance: false
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
           cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache
