@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-// Login page component for TodoSphere.
+
 import { Link, useNavigate } from "react-router-dom";
 import { CheckSquare, AlertCircle } from "lucide-react";
 
