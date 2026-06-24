@@ -46,35 +46,20 @@ jobs:
 
       - name: Pull and Tag Images
         run: |
-          # Try pulling backend image, fallback to building locally if missing
-          if ! docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}; then
-            echo "Backend image not found in GHCR. Building locally..."
-            docker build -t ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }} ./backend
-          fi
+          # Pull images directly from GHCR
+          docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
+          docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
 
-          # Try pulling frontend image, fallback to building locally if missing
-          if ! docker pull ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}; then
-            echo "Frontend image not found in GHCR. Building locally..."
-            docker build -t ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }} ./frontend
-          fi
-
-          # Extract digests locally (fallback to image ID if local build)
-          BACKEND_DIGEST=$(docker inspect --format='{{range .RepoDigests}}{{.}}{{end}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }} 2>/dev/null || true)
-          if [ -z "$BACKEND_DIGEST" ]; then
-            BACKEND_DIGEST=$(docker inspect --format='{{.Id}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }})
-          fi
-
-          FRONTEND_DIGEST=$(docker inspect --format='{{range .RepoDigests}}{{.}}{{end}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }} 2>/dev/null || true)
-          if [ -z "$FRONTEND_DIGEST" ]; then
-            FRONTEND_DIGEST=$(docker inspect --format='{{.Id}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }})
-          fi
+          # Extract digests locally
+          BACKEND_DIGEST=$(docker inspect --format='{{range .RepoDigests}}{{.}}{{end}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }})
+          FRONTEND_DIGEST=$(docker inspect --format='{{range .RepoDigests}}{{.}}{{end}}' ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }})
 
           echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
           echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
 
           # Expose image tags globally for all docker compose steps in the runner environment
-          echo "BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}" >> $GITHUB_ENV
-          echo "FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ env.SHA }}" >> $GITHUB_ENV
+          echo "BACKEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}" >> $GITHUB_ENV
 
       - name: Start Temporary Test Stack
         run: |
@@ -250,6 +235,8 @@ jobs:
       - name: Disk Cleanup
         if: always()
         run: |
-          docker system prune -f --filter "until=24h"
+          docker rmi ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }} || true
+          docker rmi ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }} || true
+          docker image prune -f
 
 # Trigger PR build after skip tag removal

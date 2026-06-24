@@ -79,22 +79,12 @@ jobs:
             docker tag $BACKEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
             docker tag $FRONTEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
           else
-            BACKEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}"
-            FRONTEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ env.PR_NUMBER }}-${{ env.PR_HEAD_SHA }}"
+            BACKEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ env.PR_NUMBER }}"
+            FRONTEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ env.PR_NUMBER }}"
 
-            # Backend
-            if ! docker pull $BACKEND_TARGET_TAG; then
-              echo "Backend PR image not found in GHCR. Building and pushing..."
-              docker build -t $BACKEND_TARGET_TAG ./backend
-              docker push $BACKEND_TARGET_TAG
-            fi
-
-            # Frontend
-            if ! docker pull $FRONTEND_TARGET_TAG; then
-              echo "Frontend PR image not found in GHCR. Building and pushing..."
-              docker build -t $FRONTEND_TARGET_TAG ./frontend
-              docker push $FRONTEND_TARGET_TAG
-            fi
+            # Pull directly from GHCR (guaranteed to exist)
+            docker pull $BACKEND_TARGET_TAG
+            docker pull $FRONTEND_TARGET_TAG
 
             docker tag $BACKEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
             docker tag $FRONTEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
@@ -284,6 +274,23 @@ jobs:
           docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:latest
           docker push ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:latest
 
+      - name: Delete PR Images from GHCR
+        if: success() && env.PR_NUMBER != 'direct'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Deleting backend PR image from GHCR..."
+          BACKEND_VERSION_ID=$(gh api "users/${{ env.OWNER_LC }}/packages/container/to-do-application%2Fbackend/versions" --jq ".[] | select(.metadata.container.tags[] == \"pr-${{ env.PR_NUMBER }}\") | .id" 2>/dev/null || true)
+          if [ -n "$BACKEND_VERSION_ID" ]; then
+            gh api -X DELETE "users/${{ env.OWNER_LC }}/packages/container/to-do-application%2Fbackend/versions/$BACKEND_VERSION_ID" || echo "Failed to delete backend PR version"
+          fi
+
+          echo "Deleting frontend PR image from GHCR..."
+          FRONTEND_VERSION_ID=$(gh api "users/${{ env.OWNER_LC }}/packages/container/to-do-application%2Ffrontend/versions" --jq ".[] | select(.metadata.container.tags[] == \"pr-${{ env.PR_NUMBER }}\") | .id" 2>/dev/null || true)
+          if [ -n "$FRONTEND_VERSION_ID" ]; then
+            gh api -X DELETE "users/${{ env.OWNER_LC }}/packages/container/to-do-application%2Ffrontend/versions/$FRONTEND_VERSION_ID" || echo "Failed to delete frontend PR version"
+          fi
+
       - name: Send Success Email
         uses: dawidd6/action-send-mail@v17
         with:
@@ -307,4 +314,11 @@ jobs:
       - name: Disk Cleanup
         if: always()
         run: |
-          docker system prune -f --filter "until=24h"
+          # Clean up tags we created/pulled during this run
+          docker rmi ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ env.PR_NUMBER }} || true
+          docker rmi ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ env.PR_NUMBER }} || true
+          docker rmi ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }} || true
+          docker rmi ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }} || true
+          docker rmi ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:latest || true
+          docker rmi ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:latest || true
+          docker image prune -f
