@@ -221,6 +221,9 @@ jobs:
     name: Build, Scan and Push
     runs-on: ubuntu-latest
     needs: [backend-checks, frontend-checks, security-scan]
+    permissions:
+      contents: read
+      packages: write
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') && !contains(github.event.pull_request.title, 'skip pr-check') && !contains(github.event.pull_request.title, 'skip pr check') }}
     steps:
       - name: Checkout repository
@@ -271,8 +274,7 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           provenance: false
-          tags: |
-            ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
+          tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
           cache-from: type=gha
 
       - name: Build Frontend (Local Load for Scan)
@@ -304,8 +306,7 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           provenance: false
-          tags: |
-            ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
+          tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
           cache-from: type=gha
 
       - name: Create or Update PR Comment
@@ -313,13 +314,9 @@ jobs:
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            ### TodoSphere Images Built Successfully!
+            ### ✅ TodoSphere Images Built Successfully!
 
-            The Docker images have been built and pushed to GitHub Container Registry (GHCR).
-
-            **Image Digests:**
-            - **Backend:** `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend@${{ steps.push_backend.outputs.digest }}`
-            - **Frontend:** `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend@${{ steps.push_frontend.outputs.digest }}`
+            Docker images have been built and pushed to GHCR.
 
             **Tags:**
             - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}`
@@ -339,17 +336,13 @@ jobs:
     if: always()
     permissions:
       contents: read
+      pull-requests: write
     steps:
       - name: Notify Status
         run: |
           echo "=== PR Quality Gate Status ==="
           echo "Branch Check: ${{ needs.branch-check.result }}"
-          echo "Backend Checks: ${{ needs.backend-checks.result }}"
-          echo "Frontend Checks: ${{ needs.frontend-checks.result }}"
+          echo "Backend: ${{ needs.backend-checks.result }}"
+          echo "Frontend: ${{ needs.frontend-checks.result }}"
           echo "Security Scan: ${{ needs.security-scan.result }}"
-          echo "Build, Scan & Push: ${{ needs.build-scan-push.result }}"
-          # TODO: Configure Slack/Discord/Webhook notifications in your public repo.
-          # Example:
-          # curl -X POST -H 'Content-type: application/json' \
-          #   --data '{"text":"PR Quality Gate completed. Result: Branch Check: ${{ needs.branch-check.result }}, Backend: ${{ needs.backend-checks.result }}, Frontend: ${{ needs.frontend-checks.result }}, Security Scan: ${{ needs.security-scan.result }}, Build/Scan: ${{ needs.build-scan-push.result }}. Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
-          #   "${{ secrets.NOTIFICATION_WEBHOOK_URL_PLACEHOLDER }}"
+          echo "Build/Scan/Push: ${{ needs.build-scan-push.result }}"
