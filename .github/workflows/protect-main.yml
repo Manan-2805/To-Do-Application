@@ -7,14 +7,16 @@ on:
 
 jobs:
   check-source-branch:
+    name: Validate PR Source Branch
     runs-on: ubuntu-latest
+
     steps:
-      - name: Verify source branch is development
+      - name: Validate source branch
         run: |
           if [[ "${{ github.head_ref }}" != "development" ]]; then
-            echo "Error: PRs to main are only allowed from the 'development' branch."
-            echo "You tried to merge from: ${{ github.head_ref }}"
+            echo "Error: PRs to main are only allowed from the development branch."
+            echo "Source branch: ${{ github.head_ref }}"
             exit 1
-          else
-            echo "PR is from development branch - proceeding."
           fi
+
+          echo "Source branch is development. Validation passed."
