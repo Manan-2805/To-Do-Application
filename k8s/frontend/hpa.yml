@@ -1,17 +1,42 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: todosphere-frontend-hpa
+  name: todosphere-frontend-blue-hpa
   namespace: todosphere
   labels:
     app: todosphere-frontend
+    slot: blue
     app.kubernetes.io/part-of: todosphere
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: todosphere-frontend
-  minReplicas: 2
+    name: todosphere-frontend-blue
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: todosphere-frontend-green-hpa
+  namespace: todosphere
+  labels:
+    app: todosphere-frontend
+    slot: green
+    app.kubernetes.io/part-of: todosphere
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: todosphere-frontend-green
+  minReplicas: 1
   maxReplicas: 4
   metrics:
     - type: Resource

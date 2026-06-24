@@ -311,19 +311,26 @@ jobs:
 
       - name: Create or Update PR Comment
         if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            ### ✅ TodoSphere Images Built Successfully!
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_BODY=$(cat << 'EOF'
+          ### TodoSphere Images Built Successfully!
 
-            Docker images have been built and pushed to GHCR.
+          Docker images have been built and pushed to GHCR.
 
-            **Tags:**
-            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}`
-            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}`
+          **Tags:**
+          - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}`
+          - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}`
 
-            *Pushed at: ${{ github.run_started_at }}*
+          *Pushed at: ${{ github.run_started_at }}*
+          EOF
+          )
+
+          # Try to update existing comment first, else create new one
+          if ! gh pr comment ${{ github.event.pull_request.number }} --edit-last || true; then
+            gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT_BODY"
+          fi
 
   notify:
     name: Notify Status

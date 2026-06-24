@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock ./
 
