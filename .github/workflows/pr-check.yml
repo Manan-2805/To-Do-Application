@@ -331,13 +331,11 @@ jobs:
     name: Notify Status
     runs-on: ubuntu-latest
     needs:
-      [
-        branch-check,
-        backend-checks,
-        frontend-checks,
-        security-scan,
-        build-scan-push,
-      ]
+      - branch-check
+      - backend-checks
+      - frontend-checks
+      - security-scan
+      - build-scan-push
     if: always()
     permissions:
       contents: read
