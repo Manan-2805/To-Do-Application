@@ -40,4 +40,4 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic upgrade head && granian --interface asgi src.main:app --host 0.0.0.0 --port 8000 --workers 6 --runtime-threads 8 --http1-pipeline-flush"]
+CMD ["sh", "-c", "alembic upgrade head && granian --interface asgi src.main:app --host 0.0.0.0 --port 8000 --workers ${WORKERS:-2} --runtime-threads ${THREADS:-4} --http1-pipeline-flush"]

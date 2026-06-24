@@ -297,14 +297,15 @@ jobs:
           file: ./backend/Dockerfile
           push: false
           load: true
-          tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}
+          provenance: false
+          tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
           cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache
           cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache,mode=max
 
       - name: Trivy Scan Backend Image
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}
+          image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
           format: "table"
           exit-code: 1
           ignore-unfixed: true
@@ -317,9 +318,9 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
+          provenance: false
           tags: |
-            ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}
-            ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
           cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache
 
       - name: Build Frontend (Local Load for Scan)
@@ -329,14 +330,15 @@ jobs:
           file: ./frontend/Dockerfile
           push: false
           load: true
-          tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}
+          provenance: false
+          tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
           cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache
           cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache,mode=max
 
       - name: Trivy Scan Frontend Image
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}
+          image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
           format: "table"
           exit-code: 1
           ignore-unfixed: true
@@ -349,9 +351,9 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
+          provenance: false
           tags: |
-            ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}
-            ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
           cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache
 
       - name: Create or Update PR Comment
@@ -368,10 +370,8 @@ jobs:
             - **Frontend:** `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend@${{ steps.push_frontend.outputs.digest }}`
 
             **Tags:**
-            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}`
-            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}`
-            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}`
-            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}`
+            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}`
+            - `ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}`
 
             *Pushed at: ${{ github.run_started_at }}*
 
@@ -392,10 +392,10 @@ jobs:
             Title: ${{ github.event.pull_request.title }}
             PR URL: ${{ github.event.pull_request.html_url }}
 
-            Backend Image: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ github.event.pull_request.head.sha }}
+            Backend Image: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
             Backend Digest: ${{ steps.push_backend.outputs.digest }}
 
-            Frontend Image: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ github.event.pull_request.head.sha }}
+            Frontend Image: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
             Frontend Digest: ${{ steps.push_frontend.outputs.digest }}
 
             Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -417,3 +417,5 @@ jobs:
             Title: ${{ github.event.pull_request.title }}
             PR URL: ${{ github.event.pull_request.html_url }}
             Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+# Skip build comment verification
