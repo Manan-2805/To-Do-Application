@@ -205,8 +205,21 @@ jobs:
 
       - name: "Blue-Green Deploy - Step 3: Run Database Migrations on Standby Pod"
         run: |
-          # Retrieve name of a pod running in the standby deployment
-          STANDBY_POD=$(kubectl get pods -n todosphere -l app=todosphere-backend,slot=${{ env.STANDBY }} -o jsonpath='{.items[0].metadata.name}')
+          # Retrieve name of a running, non-terminating pod in the standby slot
+          for i in {1..10}; do
+            STANDBY_POD=$(kubectl get pods -n todosphere -l app=todosphere-backend,slot=${{ env.STANDBY }} -o json | jq -r '.items[] | select(.status.phase=="Running" and .metadata.deletionTimestamp==null) | .metadata.name' | head -n 1)
+            if [ -n "$STANDBY_POD" ]; then
+              break
+            fi
+            echo "Waiting for a running, non-terminating standby pod..."
+            sleep 2
+          done
+
+          if [ -z "$STANDBY_POD" ]; then
+            echo "Error: No running standby pod found!"
+            exit 1
+          fi
+
           echo "Running database migrations in standby pod: $STANDBY_POD..."
           kubectl exec -n todosphere $STANDBY_POD -- alembic upgrade head
 
