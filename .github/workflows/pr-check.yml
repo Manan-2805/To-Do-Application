@@ -413,3 +413,5 @@ jobs:
             Title: ${{ github.event.pull_request.title }}
             PR URL: ${{ github.event.pull_request.html_url }}
             Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+# Skip build comment verification
