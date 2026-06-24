@@ -99,7 +99,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             style={{ width: "100%", marginTop: "1rem" }}
             disabled={loading}
           >
-            {loading ? "Authenticating..." : "Login"}
+            {loading ? "Authenticating..." : "Login To App"}
           </button>
         </form>
 

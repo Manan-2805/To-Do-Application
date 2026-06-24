@@ -41,13 +41,13 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
-  pull-requests: write
 
 jobs:
   branch-check:
     name: Branch Up-to-Date Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') && !contains(github.event.pull_request.title, 'skip pr-check') && !contains(github.event.pull_request.title, 'skip pr check') }}
     steps:
       - name: Checkout repository
@@ -68,6 +68,8 @@ jobs:
     name: Backend Checks
     runs-on: ubuntu-latest
     needs: [branch-check]
+    permissions:
+      contents: read
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') && !contains(github.event.pull_request.title, 'skip pr-check') && !contains(github.event.pull_request.title, 'skip pr check') }}
     steps:
       - name: Checkout repository
@@ -111,28 +113,12 @@ jobs:
           cd backend
           uv run pip-audit
 
-      - name: Send failure email
-        if: failure()
-        uses: dawidd6/action-send-mail@v17
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.NOTIFY_EMAIL_USER }}
-          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
-          subject: "[FAIL] PR #${{ github.event.pull_request.number }} — Backend Checks"
-          to: ${{ secrets.NOTIFY_EMAIL_TO }}
-          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
-          body: |
-            Backend checks failed for PR #${{ github.event.pull_request.number }}.
-            Author: ${{ github.actor }}
-            Title: ${{ github.event.pull_request.title }}
-            PR URL: ${{ github.event.pull_request.html_url }}
-            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
   frontend-checks:
     name: Frontend Checks
     runs-on: ubuntu-latest
     needs: [branch-check]
+    permissions:
+      contents: read
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') && !contains(github.event.pull_request.title, 'skip pr-check') && !contains(github.event.pull_request.title, 'skip pr check') }}
     steps:
       - name: Checkout repository
@@ -170,28 +156,12 @@ jobs:
           cd frontend
           npm audit --audit-level=high
 
-      - name: Send failure email
-        if: failure()
-        uses: dawidd6/action-send-mail@v17
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.NOTIFY_EMAIL_USER }}
-          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
-          subject: "[FAIL] PR #${{ github.event.pull_request.number }} — Frontend Checks"
-          to: ${{ secrets.NOTIFY_EMAIL_TO }}
-          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
-          body: |
-            Frontend checks failed for PR #${{ github.event.pull_request.number }}.
-            Author: ${{ github.actor }}
-            Title: ${{ github.event.pull_request.title }}
-            PR URL: ${{ github.event.pull_request.html_url }}
-            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: [backend-checks, frontend-checks]
+    permissions:
+      contents: read
     if: ${{ !startsWith(github.event.pull_request.title, 'revert:') && !contains(github.event.pull_request.title, 'skip pr-check') && !contains(github.event.pull_request.title, 'skip pr check') }}
     steps:
       - name: Checkout repository
@@ -246,24 +216,6 @@ jobs:
             echo "$large_files"
             exit 1
           fi
-
-      - name: Send failure email
-        if: failure()
-        uses: dawidd6/action-send-mail@v17
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.NOTIFY_EMAIL_USER }}
-          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
-          subject: "[FAIL] PR #${{ github.event.pull_request.number }} — Security Scan"
-          to: ${{ secrets.NOTIFY_EMAIL_TO }}
-          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
-          body: |
-            Security scan failed for PR #${{ github.event.pull_request.number }}.
-            Author: ${{ github.actor }}
-            Title: ${{ github.event.pull_request.title }}
-            PR URL: ${{ github.event.pull_request.html_url }}
-            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   build-scan-push:
     name: Build, Scan and Push
@@ -375,47 +327,31 @@ jobs:
 
             *Pushed at: ${{ github.run_started_at }}*
 
-      - name: Send success email
-        uses: dawidd6/action-send-mail@v17
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.NOTIFY_EMAIL_USER }}
-          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
-          subject: "[READY] PR #${{ github.event.pull_request.number }} — Ready for Review"
-          to: ${{ secrets.NOTIFY_EMAIL_TO }}
-          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
-          body: |
-            PR #${{ github.event.pull_request.number }} has passed all quality checks and is ready for review.
-
-            Author: ${{ github.actor }}
-            Title: ${{ github.event.pull_request.title }}
-            PR URL: ${{ github.event.pull_request.html_url }}
-
-            Backend Image: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
-            Backend Digest: ${{ steps.push_backend.outputs.digest }}
-
-            Frontend Image: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
-            Frontend Digest: ${{ steps.push_frontend.outputs.digest }}
-
-            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-      - name: Send failure email
-        if: failure()
-        uses: dawidd6/action-send-mail@v17
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.NOTIFY_EMAIL_USER }}
-          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
-          subject: "[FAIL] PR #${{ github.event.pull_request.number }} — Build or Trivy Scan Failed"
-          to: ${{ secrets.NOTIFY_EMAIL_TO }}
-          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
-          body: |
-            Build, Scan, or Push job failed for PR #${{ github.event.pull_request.number }}.
-            Author: ${{ github.actor }}
-            Title: ${{ github.event.pull_request.title }}
-            PR URL: ${{ github.event.pull_request.html_url }}
-            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-# Skip build comment verification
+  notify:
+    name: Notify Status
+    runs-on: ubuntu-latest
+    needs:
+      [
+        branch-check,
+        backend-checks,
+        frontend-checks,
+        security-scan,
+        build-scan-push,
+      ]
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Notify Status
+        run: |
+          echo "=== PR Quality Gate Status ==="
+          echo "Branch Check: ${{ needs.branch-check.result }}"
+          echo "Backend Checks: ${{ needs.backend-checks.result }}"
+          echo "Frontend Checks: ${{ needs.frontend-checks.result }}"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo "Build, Scan & Push: ${{ needs.build-scan-push.result }}"
+          # TODO: Configure Slack/Discord/Webhook notifications in your public repo.
+          # Example:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"PR Quality Gate completed. Result: Branch Check: ${{ needs.branch-check.result }}, Backend: ${{ needs.backend-checks.result }}, Frontend: ${{ needs.frontend-checks.result }}, Security Scan: ${{ needs.security-scan.result }}, Build/Scan: ${{ needs.build-scan-push.result }}. Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+          #   "${{ secrets.NOTIFICATION_WEBHOOK_URL_PLACEHOLDER }}"

@@ -17,9 +17,9 @@ jobs:
       run:
         shell: bash
     permissions:
-      contents: write
+      contents: read
       packages: write
-      pull-requests: write
+      pull-requests: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,19 +62,9 @@ jobs:
             BACKEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.PR_HEAD_SHA }}"
             FRONTEND_TARGET_TAG="ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.PR_HEAD_SHA }}"
 
-            # Backend
-            if ! docker pull $BACKEND_TARGET_TAG; then
-              echo "Backend image not found in GHCR. Building and pushing..."
-              docker build -t $BACKEND_TARGET_TAG ./backend
-              docker push $BACKEND_TARGET_TAG
-            fi
-
-            # Frontend
-            if ! docker pull $FRONTEND_TARGET_TAG; then
-              echo "Frontend image not found in GHCR. Building and pushing..."
-              docker build -t $FRONTEND_TARGET_TAG ./frontend
-              docker push $FRONTEND_TARGET_TAG
-            fi
+            # Pull directly from GHCR
+            docker pull $BACKEND_TARGET_TAG
+            docker pull $FRONTEND_TARGET_TAG
 
             docker tag $BACKEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }}
             docker tag $FRONTEND_TARGET_TAG ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:${{ env.SHA }}
@@ -140,16 +130,17 @@ jobs:
             -p '{"imagePullSecrets": [{"name": "ghcr-pull-secret"}]}'
 
           # Create Secrets (CORS_ORIGINS is in ConfigMap, not here)
-          DB_PASS="${{ secrets.DB_PASSWORD }}"
-          if [ -z "$DB_PASS" ]; then DB_PASS="testpassword"; fi
+          # Note: In production, configure these as GitHub Secrets.
+          DB_PASS="${{ secrets.DB_PASSWORD_PLACEHOLDER }}"
+          if [ -z "$DB_PASS" ]; then DB_PASS="safe-dev-db-password-placeholder"; fi
 
           DATABASE_URL="postgresql+asyncpg://postgres:$DB_PASS@postgres.todosphere.svc.cluster.local:5432/todosphere"
 
-          JWT_ACC="${{ secrets.JWT_ACCESS_SECRET }}"
-          if [ -z "$JWT_ACC" ]; then JWT_ACC="ci-test-secret-access-key-todosphere"; fi
+          JWT_ACC="${{ secrets.JWT_ACCESS_SECRET_PLACEHOLDER }}"
+          if [ -z "$JWT_ACC" ]; then JWT_ACC="safe-jwt-access-secret-placeholder"; fi
 
-          JWT_REF="${{ secrets.JWT_REFRESH_SECRET }}"
-          if [ -z "$JWT_REF" ]; then JWT_REF="ci-test-secret-refresh-key-todosphere"; fi
+          JWT_REF="${{ secrets.JWT_REFRESH_SECRET_PLACEHOLDER }}"
+          if [ -z "$JWT_REF" ]; then JWT_REF="safe-jwt-refresh-secret-placeholder"; fi
 
           kubectl create secret generic todosphere-secrets \
             --namespace=todosphere \
@@ -248,38 +239,6 @@ jobs:
           kubectl patch service todosphere-backend -n todosphere -p "{\"spec\":{\"selector\":{\"app\":\"todosphere-backend\",\"slot\":\"${{ env.ACTIVE }}\"}}}"
           kubectl patch service todosphere-frontend -n todosphere -p "{\"spec\":{\"selector\":{\"app\":\"todosphere-frontend\",\"slot\":\"${{ env.ACTIVE }}\"}}}"
 
-      - name: Send Rollback Email
-        if: failure() && env.DEPLOY_STARTED == 'true'
-        uses: dawidd6/action-send-mail@v17
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.NOTIFY_EMAIL_USER }}
-          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
-          subject: "[ROLLBACK] Deploy — Blue-Green Rollback Triggered for ${{ github.sha }}"
-          to: ${{ secrets.NOTIFY_EMAIL_TO }}
-          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
-          body: |
-            A post-deployment check failed for commit ${{ github.sha }} on development branch.
-            The service selectors in the KinD cluster have been instantly rolled back to the old active slot (${{ env.ACTIVE }}).
-            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-      - name: Send Deploy Failure Email
-        if: failure() && env.DEPLOY_STARTED != 'true'
-        uses: dawidd6/action-send-mail@v17
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.NOTIFY_EMAIL_USER }}
-          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
-          subject: "[FAIL] Deploy — Rollout Failed for ${{ github.sha }}"
-          to: ${{ secrets.NOTIFY_EMAIL_TO }}
-          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
-          body: |
-            Deploy rollout failed for commit ${{ github.sha }}.
-            No traffic was switched, and the cluster remains routed to ${{ env.ACTIVE }} slot.
-            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
       - name: Update Latest Tag in GHCR
         run: |
           docker tag ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:${{ env.SHA }} ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:latest
@@ -304,25 +263,18 @@ jobs:
             gh api -X DELETE "users/${{ env.OWNER_LC }}/packages/container/to-do-application%2Ffrontend/versions/$FRONTEND_VERSION_ID" || echo "Failed to delete frontend PR version"
           fi
 
-      - name: Send Success Email
-        uses: dawidd6/action-send-mail@v17
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.NOTIFY_EMAIL_USER }}
-          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
-          subject: "[SUCCESS] Deploy — Blue-Green Rollout Completed"
-          to: ${{ secrets.NOTIFY_EMAIL_TO }}
-          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
-          body: |
-            Commit ${{ github.sha }} has been successfully deployed using Blue-Green deployment to development KinD cluster!
-            - Active slot: ${{ env.STANDBY }}
-            - Standby slot: ${{ env.ACTIVE }}
-            - Backend Image Digest: ${{ env.BACKEND_DIGEST }}
-            - Frontend Image Digest: ${{ env.FRONTEND_DIGEST }}
-
-            Deployed at: ${{ github.run_started_at }}
-            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      - name: Notify Workflow Status
+        if: always()
+        run: |
+          echo "=== Deploy to Development Status: ${{ job.status }} ==="
+          echo "Commit: ${{ github.sha }}"
+          echo "Active Slot: ${{ env.STANDBY || env.ACTIVE }}"
+          echo "Workflow Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # TODO: Configure Slack/Discord/Webhook notifications in your public repo.
+          # Example:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"Deploy to Development: ${{ job.status }}. Commit: ${{ github.sha }}. Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+          #   "${{ secrets.NOTIFICATION_WEBHOOK_URL_PLACEHOLDER }}"
 
       - name: Disk Cleanup
         if: always()

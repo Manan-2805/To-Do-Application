@@ -21,9 +21,9 @@ jobs:
       run:
         shell: bash
     permissions:
-      contents: write
+      contents: read
       packages: read
-      pull-requests: write
+      pull-requests: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -134,12 +134,22 @@ jobs:
       - name: Run Lighthouse Audit
         run: |
           cd frontend
-          export CHROME_PATH=$(find /c/Users/manan/AppData/Local/ms-playwright -name "chrome.exe" | head -n 1)
+          if [ -n "$USERPROFILE" ]; then
+            # Windows host / Git Bash environment
+            SEARCH_DIR="${USERPROFILE}/AppData/Local/ms-playwright"
+          else
+            # Linux/macOS
+            SEARCH_DIR="${HOME}/.cache/ms-playwright"
+          fi
+          # Normalize backslashes for bash find command
+          SEARCH_DIR=$(echo "$SEARCH_DIR" | tr '\\' '/')
+          export CHROME_PATH=$(find "$SEARCH_DIR" -name "chrome.exe" -o -name "chrome" -o -name "chromium" 2>/dev/null | head -n 1)
           npx lighthouse http://127.0.0.1:8081 --output json --output html --output-path ../lighthouse-results --chrome-flags="--headless --no-sandbox --disable-gpu --disable-dev-shm-usage"
           cd ..
-          backend/.venv/Scripts/python -B -c "
+          cd backend
+          uv run python -B -c "
           import json, sys
-          with open('./lighthouse-results.report.json', encoding='utf-8') as f:
+          with open('../lighthouse-results.report.json', encoding='utf-8') as f:
               data = json.load(f)
           c = data['categories']
           perf, acc, bp, seo = c['performance']['score']*100, c['accessibility']['score']*100, c['best-practices']['score']*100, c['seo']['score']*100
@@ -153,15 +163,15 @@ jobs:
               print('Lighthouse check failed:', ', '.join(failed), file=sys.stderr)
               sys.exit(1)
           "
+          cd ..
 
       - name: Run Locust Smoke Load Test
         run: |
           cd backend
           uv run python -m locust -f tests/performance/locustfile.py --headless -u 20 -r 5 --run-time 60s --host http://127.0.0.1:8000 --csv=locust_results --only-summary
-          cd ..
-          backend/.venv/Scripts/python -B -c "
+          uv run python -B -c "
           import csv, sys
-          with open('backend/locust_results_stats.csv', encoding='utf-8') as f:
+          with open('locust_results_stats.csv', encoding='utf-8') as f:
               reader = csv.DictReader(f)
               rows = list(reader)
           agg = next((r for r in rows if r.get('Name') == 'Aggregated'), None)
@@ -185,28 +195,25 @@ jobs:
               print('Locust check failed:', ', '.join(failed), file=sys.stderr)
               sys.exit(1)
           "
+          cd ..
 
       - name: Tear Down Temporary Test Stack
         if: always()
         run: |
           docker compose -f docker-compose.test.yml down -v --remove-orphans
 
-      - name: Send Test Failure Email
-        if: failure()
-        uses: dawidd6/action-send-mail@v17
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.NOTIFY_EMAIL_USER }}
-          password: ${{ secrets.NOTIFY_EMAIL_PASS }}
-          subject: "[FAIL] Heavy Tests Failed for PR #${{ github.event.pull_request.number }}"
-          to: ${{ secrets.NOTIFY_EMAIL_TO }}
-          from: TodoSphere CI/CD <${{ secrets.NOTIFY_EMAIL_USER }}>
-          body: |
-            Heavy tests failed for PR #${{ github.event.pull_request.number }} (Commit: ${{ env.SHA }}).
-            Author: ${{ github.actor }}
-            PR: ${{ github.event.pull_request.html_url }}
-            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      - name: Notify Workflow Status
+        if: always()
+        run: |
+          echo "=== Heavy Testing Status: ${{ job.status }} ==="
+          echo "PR: #${{ github.event.pull_request.number }}"
+          echo "Commit: ${{ env.SHA }}"
+          echo "Workflow Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # TODO: Configure Slack/Discord/Webhook notifications in your public repo.
+          # Example:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"Heavy Testing: ${{ job.status }}. PR: #${{ github.event.pull_request.number }}. Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+          #   "${{ secrets.NOTIFICATION_WEBHOOK_URL_PLACEHOLDER }}"
 
       - name: Upload Playwright Report
         if: always()

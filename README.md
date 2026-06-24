@@ -312,10 +312,15 @@ All verification tasks write output to the root-level `reports/` folder:
      ```
 
 ### CI/CD Pipeline
-- **PR Quality Gate (Workflow 1)**: Triggered automatically on GitHub-hosted runners when a Pull Request is opened or updated targeting `main`. Skips checks automatically on revert branches/titles (`revert:`).
-  - *Steps:* Runs linting (Ruff/ESLint), formatting check (Ruff/Prettier), strict type checking (MyPy/TypeScript compile), security analysis (Bandit/TruffleHog/Trivy FS scan), builds and scans backend and frontend images, pushes built images to GHCR tagged with the PR SHA.
-- **Deploy Gate (Workflow 2)**: Triggers automatically on the local self-hosted runner when a PR is merged into `main` (push to main).
-  - *Steps:* Pulls the tagged PR images, launches a temporary isolated test stack using `docker-compose.test.yml`, runs migrations, runs live validation tests (Playwright E2E suite, Lighthouse performance audits, Locust smoke tests). If any test fails, it tears down the stack, deletes the deployment, opens an automated revert PR, and alerts the team. On success, it applies secrets and configurations to the KinD cluster, updates deployment images, verifies rollouts, and tags the stable images as `latest` in GHCR.
+
+For a complete and detailed breakdown of our automated workflows, trigger conditions, permissions, and security measures, refer to the **[CI/CD Workflows Guide](CI_CD.md)**.
+
+A quick summary:
+- **PR Quality Gate (`pr-check.yml`)**: Triggered automatically on pull requests targeting `development`. Runs code style, formatting, security audits, secret scanning, builds Docker images, and pushes them to GHCR.
+- **Deploy to Development (`deploy-development.yml`)**: Triggers on push/merge to `development`. Performs zero-downtime blue-green deployment to the local KinD cluster, updating images, performing DB migrations, and verifying rollout health.
+- **Heavy Testing (`heavy-test.yml`)**: Runs Playwright E2E, accessibility audits, and Locust load testing in a test stack.
+- **Validate PR Source Branch (`protect-main.yml`)**: Restricts merges to `main` to ensure changes only originate from `development`.
+- **Auto Branch on Issue (`branch-create.yml`)**: Dynamically boots issue feature branches.
 
 ### Required Always-On Terminals
 - **Terminal 1**: `.\run.cmd` (within your GitHub runner folder) — must remain running to execute Workflow 2.
