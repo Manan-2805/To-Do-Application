@@ -310,6 +310,7 @@ jobs:
           cache-from: type=gha
 
       - name: Create or Update PR Comment
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
