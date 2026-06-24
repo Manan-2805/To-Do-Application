@@ -1,0 +1,20 @@
+name: Protect Main Branch
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify source branch is development
+        run: |
+          if [[ "${{ github.head_ref }}" != "development" ]]; then
+            echo "Error: PRs to main are only allowed from the 'development' branch."
+            echo "You tried to merge from: ${{ github.head_ref }}"
+            exit 1
+          else
+            echo "PR is from development branch - proceeding."
+          fi
