@@ -251,8 +251,8 @@ jobs:
           load: true
           provenance: false
           tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
-          cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache
-          cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Trivy Scan Backend Image
         uses: aquasecurity/trivy-action@v0.35.0
@@ -273,7 +273,7 @@ jobs:
           provenance: false
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
-          cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache
+          cache-from: type=gha
 
       - name: Build Frontend (Local Load for Scan)
         uses: docker/build-push-action@v6
@@ -284,8 +284,8 @@ jobs:
           load: true
           provenance: false
           tags: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
-          cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache
-          cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Trivy Scan Frontend Image
         uses: aquasecurity/trivy-action@v0.35.0
@@ -306,7 +306,7 @@ jobs:
           provenance: false
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
-          cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache
+          cache-from: type=gha
 
       - name: Create or Update PR Comment
         uses: peter-evans/create-or-update-comment@v4
