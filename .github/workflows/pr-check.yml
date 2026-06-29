@@ -177,7 +177,7 @@ jobs:
           extra_args: --only-verified
 
       - name: Trivy FS Scan
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: "fs"
           scan-ref: "."
@@ -255,7 +255,7 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:cache,mode=max
 
       - name: Trivy Scan Backend Image
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/backend:pr-${{ github.event.pull_request.number }}
           format: "table"
@@ -288,7 +288,7 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache,mode=max
 
       - name: Trivy Scan Frontend Image
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:pr-${{ github.event.pull_request.number }}
           format: "table"
