@@ -309,7 +309,7 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ env.OWNER_LC }}/to-do-application/frontend:cache
 
       - name: Create or Update PR Comment
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
