@@ -15,7 +15,7 @@
     "build:visualize": "cross-env ANALYZE=true vite build"
   },
   "dependencies": {
-    "lucide-react": "^1.21.0",
+    "lucide-react": "^1.22.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.17.0"
